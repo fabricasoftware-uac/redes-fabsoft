@@ -10,15 +10,18 @@ const emptyToUndefined = (val: unknown): unknown => {
 
 const optionalNonEmptyString = z.preprocess(emptyToUndefined, z.string().min(1).optional());
 
-const booleanFromString = z.preprocess((val) => {
-  if (typeof val === 'boolean') return val;
-  if (typeof val === 'string') {
-    const normalized = val.trim().toLowerCase();
-    if (normalized === 'true' || normalized === '1') return true;
-    if (normalized === 'false' || normalized === '0' || normalized === '') return false;
-  }
-  return false;
-}, z.boolean());
+const booleanEnv = (defaultValue: boolean) =>
+  z.preprocess((val) => {
+    if (val === undefined || val === null) return undefined;
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'string') {
+      const normalized = val.trim().toLowerCase();
+      if (normalized === '') return undefined;
+      if (normalized === 'true' || normalized === '1') return true;
+      if (normalized === 'false' || normalized === '0') return false;
+    }
+    return false;
+  }, z.boolean().default(defaultValue));
 
 export const envSchema = z.object({
   // Server
@@ -33,7 +36,7 @@ export const envSchema = z.object({
   AI_PROVIDER: z.enum(['auto', 'openrouter', 'gemini']).default('auto'),
   OPENROUTER_API_KEY: optionalNonEmptyString,
   OPENROUTER_TEXT_MODEL: z.string().min(1).default('google/gemini-2.5-flash'),
-  OPENROUTER_IMAGE_MODEL: z.string().min(1).default('google/gemini-2.5-flash-image-preview'),
+  OPENROUTER_IMAGE_MODEL: z.string().min(1).default('google/gemini-2.5-flash-image'),
 
   // Google Gemini (optional fallback)
   GEMINI_API_KEY: optionalNonEmptyString,
@@ -58,9 +61,11 @@ export const envSchema = z.object({
   META_GRAPH_API_VERSION: z.string().min(1).default('v22.0'),
 
   // Scheduler / Cron
-  CRON_ENABLED: booleanFromString.default(false),
+  CRON_ENABLED: booleanEnv(false),
   CRON_SCHEDULE: z.string().min(1).default('0 10 * * 1,3,5'),
   CRON_TIMEZONE: z.string().min(1).default('America/Bogota'),
+  RECORDING_CRON_ENABLED: booleanEnv(true),
+  RECORDING_CRON_SCHEDULE: z.string().min(1).default('0 9 * * 1,4'),
 });
 
 export type Env = z.infer<typeof envSchema>;

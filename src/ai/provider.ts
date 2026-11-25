@@ -9,6 +9,7 @@ export interface GenerateJsonParams<T> {
   userPrompt: string;
   schema: ZodType<T, ZodTypeDef, unknown>;
   temperature?: number;
+  useWebSearch?: boolean;
 }
 
 export interface AIProvider {
@@ -166,12 +167,15 @@ export class OpenRouterProvider implements AIProvider {
     };
   }
 
-  async generateJson<T>(params: GenerateJsonParams<T>): Promise<T> {
+  private async requestJson<T>(
+    model: string,
+    params: GenerateJsonParams<T>
+  ): Promise<T> {
     const res = await fetch(this.baseUrl, {
       method: 'POST',
       headers: this.headers,
       body: JSON.stringify({
-        model: this.textModel,
+        model,
         temperature: params.temperature ?? 0.75,
         response_format: { type: 'json_object' },
         messages: [
@@ -225,6 +229,22 @@ export class OpenRouterProvider implements AIProvider {
     }
 
     return validated.data;
+  }
+
+  async generateJson<T>(params: GenerateJsonParams<T>): Promise<T> {
+    if (params.useWebSearch && !this.textModel.endsWith(':online')) {
+      const onlineModel = `${this.textModel}:online`;
+      try {
+        return await this.requestJson(onlineModel, params);
+      } catch (err) {
+        console.warn(
+          `[openrouter] Web search model (${onlineModel}) failed, falling back to ${this.textModel}:`,
+          err instanceof Error ? err.message : String(err)
+        );
+      }
+    }
+
+    return this.requestJson(this.textModel, params);
   }
 
   async generateImage(

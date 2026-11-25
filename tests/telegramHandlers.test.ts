@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   regeneratePostCopy: vi.fn(),
   regeneratePostImage: vi.fn(),
   sendPostPreviewToTelegram: vi.fn(),
+  generateAndSaveTrendIdeas: vi.fn(),
+  generateAndSendRecordingIdea: vi.fn(),
+  markIdeaSuggestionSelected: vi.fn(),
   claimPostForPublishing: vi.fn(),
   releasePostToPendingApproval: vi.fn(),
   markPostPublished: vi.fn(),
@@ -34,6 +37,8 @@ vi.mock('../src/config/env.js', () => ({
     CRON_ENABLED: false,
     CRON_SCHEDULE: '0 10 * * 1,3,5',
     CRON_TIMEZONE: 'America/Bogota',
+    RECORDING_CRON_ENABLED: true,
+    RECORDING_CRON_SCHEDULE: '0 9 * * 1,4',
     META_GRAPH_API_VERSION: 'v22.0',
   })),
   isInstagramConfigured: mocks.isInstagramConfigured,
@@ -71,6 +76,22 @@ vi.mock('../src/pipeline/generatePost.js', () => ({
   buildInstagramCaption: vi.fn(
     (post: SocialPost) => `${post.caption}\n\n${post.hashtags.join(' ')}`
   ),
+}));
+
+vi.mock('../src/db/ideasRepository.js', () => ({
+  markIdeaSuggestionSelected: mocks.markIdeaSuggestionSelected,
+}));
+
+vi.mock('../src/ai/trendsAgent.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/ai/trendsAgent.js')>();
+  return {
+    ...actual,
+    generateAndSaveTrendIdeas: mocks.generateAndSaveTrendIdeas,
+  };
+});
+
+vi.mock('../src/ai/recordingAgent.js', () => ({
+  generateAndSendRecordingIdea: mocks.generateAndSendRecordingIdea,
 }));
 
 vi.mock('../src/publishers/instagramPublisher.js', () => ({
@@ -295,5 +316,201 @@ describe('Telegram webhook handlers — security, commands & idempotency', () =>
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  it('handles /tendencias@botname with optional focus and renders 4 inline pick buttons + refresh', async () => {
+    const sampleIdeas = [
+      {
+        id: 'idea-1',
+        title: 'Agentes de IA en WhatsApp',
+        pillar: 'tendencias' as const,
+        angle: 'Caso SpartanBot para pymes',
+        whyTrending: 'Explosión de automatización conversacional',
+        status: 'suggested' as const,
+        createdAt: new Date(),
+      },
+      {
+        id: 'idea-2',
+        title: 'PWAs offline para restaurantes',
+        pillar: 'productos' as const,
+        angle: 'Arquitectura de Xeiva sin internet',
+        whyTrending: 'Conectividad inestable en comercios LATAM',
+        status: 'suggested' as const,
+        createdAt: new Date(),
+      },
+      {
+        id: 'idea-3',
+        title: 'TypeScript estricto en producción',
+        pillar: 'educacion' as const,
+        angle: 'Evitar bugs en tiempo de compilación',
+        whyTrending: 'Estándar dominante en equipos backend',
+        status: 'suggested' as const,
+        createdAt: new Date(),
+      },
+      {
+        id: 'idea-4',
+        title: 'Entregas cada viernes sin excusas',
+        pillar: 'proceso' as const,
+        angle: 'Cómo trabajamos desde Emprendelab Popayán',
+        whyTrending: 'Transparencia en desarrollo a medida',
+        status: 'suggested' as const,
+        createdAt: new Date(),
+      },
+    ];
+    mocks.generateAndSaveTrendIdeas.mockResolvedValueOnce(sampleIdeas);
+
+    await processTelegramUpdate({
+      update_id: 3001,
+      message: {
+        message_id: 50,
+        from: { id: 55, username: 'founder' },
+        chat: { id: AUTHORIZED_GROUP_CHAT_ID, type: 'supergroup' },
+        text: '/tendencias@fabsoft_social_bot IA para pymes',
+      },
+    });
+
+    expect(mocks.generateAndSaveTrendIdeas).toHaveBeenCalledWith('IA para pymes');
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
+    const secondCall = mocks.sendMessage.mock.calls[1]?.[0];
+    expect(secondCall.text).toContain('Agentes de IA en WhatsApp');
+    expect(secondCall.replyMarkup.inline_keyboard).toEqual([
+      [
+        { text: '1️⃣ Generar #1', callback_data: 'pick_idea:idea-1' },
+        { text: '2️⃣ Generar #2', callback_data: 'pick_idea:idea-2' },
+      ],
+      [
+        { text: '3️⃣ Generar #3', callback_data: 'pick_idea:idea-3' },
+        { text: '4️⃣ Generar #4', callback_data: 'pick_idea:idea-4' },
+      ],
+      [{ text: '🔄 Nuevas tendencias', callback_data: 'refresh_trends' }],
+    ]);
+  });
+
+  it('handles pick_idea:<id> callback by marking selected and calling generateAndSendPost', async () => {
+    mocks.markIdeaSuggestionSelected.mockResolvedValueOnce({
+      id: 'idea-1',
+      title: 'Agentes de IA en WhatsApp',
+      pillar: 'tendencias',
+      angle: 'Caso SpartanBot para pymes',
+      whyTrending: 'Alta demanda B2B',
+      status: 'selected',
+      createdAt: new Date(),
+    });
+    mocks.generateAndSendPost.mockResolvedValueOnce(makeSamplePost());
+
+    await processTelegramUpdate({
+      update_id: 3002,
+      callback_query: {
+        id: 'cb-pick-1',
+        from: { id: 55, username: 'founder' },
+        message: {
+          message_id: 51,
+          chat: { id: AUTHORIZED_GROUP_CHAT_ID, type: 'supergroup' },
+        },
+        data: 'pick_idea:idea-1',
+      },
+    });
+
+    expect(mocks.markIdeaSuggestionSelected).toHaveBeenCalledWith('idea-1');
+    expect(mocks.answerCallbackQuery).toHaveBeenCalledWith({
+      callbackQueryId: 'cb-pick-1',
+      text: 'Generando propuesta…',
+    });
+    expect(mocks.generateAndSendPost).toHaveBeenCalledWith(
+      'Agentes de IA en WhatsApp — Caso SpartanBot para pymes'
+    );
+  });
+
+  it('prevents duplicate generation if pick_idea:<id> was already selected', async () => {
+    mocks.markIdeaSuggestionSelected.mockResolvedValueOnce(null);
+
+    await processTelegramUpdate({
+      update_id: 3003,
+      callback_query: {
+        id: 'cb-pick-dup',
+        from: { id: 55, username: 'founder' },
+        message: {
+          message_id: 51,
+          chat: { id: AUTHORIZED_GROUP_CHAT_ID, type: 'supergroup' },
+        },
+        data: 'pick_idea:idea-1',
+      },
+    });
+
+    expect(mocks.generateAndSendPost).not.toHaveBeenCalled();
+    expect(mocks.answerCallbackQuery).toHaveBeenCalledWith({
+      callbackQueryId: 'cb-pick-dup',
+      text: 'Esta idea ya fue seleccionada o no existe.',
+      showAlert: true,
+    });
+  });
+
+  it('handles /grabar with auto-alternate, oficina, and virtual arguments', async () => {
+    mocks.generateAndSendRecordingIdea.mockResolvedValue({ id: 'rec-1' });
+
+    await processTelegramUpdate({
+      update_id: 3004,
+      message: {
+        message_id: 60,
+        from: { id: 55, username: 'founder' },
+        chat: { id: AUTHORIZED_GROUP_CHAT_ID, type: 'supergroup' },
+        text: '/grabar',
+      },
+    });
+
+    await processTelegramUpdate({
+      update_id: 3005,
+      message: {
+        message_id: 61,
+        from: { id: 55, username: 'founder' },
+        chat: { id: AUTHORIZED_GROUP_CHAT_ID, type: 'supergroup' },
+        text: '/grabar oficina',
+      },
+    });
+
+    await processTelegramUpdate({
+      update_id: 3006,
+      message: {
+        message_id: 62,
+        from: { id: 55, username: 'founder' },
+        chat: { id: AUTHORIZED_GROUP_CHAT_ID, type: 'supergroup' },
+        text: '/grabar@fabsoft_social_bot virtual',
+      },
+    });
+
+    expect(mocks.generateAndSendRecordingIdea).toHaveBeenNthCalledWith(
+      1,
+      null,
+      AUTHORIZED_GROUP_CHAT_ID
+    );
+    expect(mocks.generateAndSendRecordingIdea).toHaveBeenNthCalledWith(
+      2,
+      'oficina',
+      AUTHORIZED_GROUP_CHAT_ID
+    );
+    expect(mocks.generateAndSendRecordingIdea).toHaveBeenNthCalledWith(
+      3,
+      'virtual_duo',
+      AUTHORIZED_GROUP_CHAT_ID
+    );
+  });
+
+  it('lists all commands in /help', async () => {
+    await processTelegramUpdate({
+      update_id: 3007,
+      message: {
+        message_id: 63,
+        from: { id: 55, username: 'founder' },
+        chat: { id: AUTHORIZED_GROUP_CHAT_ID, type: 'supergroup' },
+        text: '/help',
+      },
+    });
+
+    const helpMsg = mocks.sendMessage.mock.calls[0]?.[0]?.text as string;
+    expect(helpMsg).toContain('/idea');
+    expect(helpMsg).toContain('/tendencias');
+    expect(helpMsg).toContain('/grabar');
+    expect(helpMsg).toContain('/status');
+    expect(helpMsg).toContain('/help');
   });
 });

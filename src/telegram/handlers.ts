@@ -1,5 +1,13 @@
 import { z } from 'zod';
+import { generateAndSendRecordingIdea } from '../ai/recordingAgent.js';
+import type { RecordingMode } from '../ai/schemas.js';
+import {
+  buildTrendsKeyboard,
+  formatTrendsMessage,
+  generateAndSaveTrendIdeas,
+} from '../ai/trendsAgent.js';
 import { getEnv, isInstagramConfigured, requireEnv } from '../config/env.js';
+import { markIdeaSuggestionSelected } from '../db/ideasRepository.js';
 import {
   claimPostForPublishing,
   findPostAwaitingEditByUser,
@@ -95,6 +103,8 @@ async function handleCommand(
       '',
       '• <code>/idea &lt;tema&gt;</code> — Genera una propuesta completa sobre un tema específico.',
       '• <code>/idea</code> — Genera una propuesta autónoma (anti-repetición).',
+      '• <code>/tendencias [enfoque]</code> — Sugiere 4 ideas frescas en tendencia con botones para generar.',
+      '• <code>/grabar [oficina|virtual]</code> — Recomienda un guion corto (30–45s) para grabar Reel/Video.',
       '• <code>/status</code> — Muestra el resumen de publicaciones y estado del sistema.',
       '• <code>/cancel</code> — Cancela una edición de copy en curso.',
       '• <code>/help</code> — Muestra esta ayuda.',
@@ -133,6 +143,9 @@ async function handleCommand(
     const cronStatus = env.CRON_ENABLED
       ? `✅ Activo (${env.CRON_SCHEDULE} ${env.CRON_TIMEZONE})`
       : '⏸ Desactivado';
+    const recordingCronStatus = env.RECORDING_CRON_ENABLED
+      ? `✅ Activo (${env.RECORDING_CRON_SCHEDULE} ${env.CRON_TIMEZONE})`
+      : '⏸ Desactivado';
 
     const recentLines =
       summary.recent.length > 0
@@ -148,7 +161,8 @@ async function handleCommand(
       '<b>📊 Estado del Pipeline FabSoft</b>',
       '',
       `<b>Instagram API:</b> ${igStatus}`,
-      `<b>Cron autónomo:</b> ${escapeHtml(cronStatus)}`,
+      `<b>Cron posts:</b> ${escapeHtml(cronStatus)}`,
+      `<b>Cron grabación:</b> ${escapeHtml(recordingCronStatus)}`,
       '',
       `<b>Contadores:</b>`,
       `• Pendientes de aprobación: <b>${summary.counts.pending_approval}</b>`,
@@ -180,6 +194,66 @@ async function handleCommand(
       console.error('[telegram] /idea failed:', err);
       await notifyError(chatId, '/idea', err);
     }
+    return;
+  }
+
+  if (command === 'tendencias') {
+    const focus = arg.length > 0 ? arg : null;
+    await telegram.sendMessage({
+      chatId,
+      text: focus
+        ? `🔍 Buscando 4 tendencias frescas sobre: <b>${escapeHtml(focus)}</b>…`
+        : '🔍 Buscando 4 tendencias tech y de negocio para FabSoft…',
+      parseMode: 'HTML',
+    });
+
+    try {
+      const ideas = await generateAndSaveTrendIdeas(focus);
+      await telegram.sendMessage({
+        chatId,
+        text: formatTrendsMessage(ideas, focus),
+        parseMode: 'HTML',
+        replyMarkup: buildTrendsKeyboard(ideas),
+      });
+    } catch (err) {
+      console.error('[telegram] /tendencias failed:', err);
+      await notifyError(chatId, '/tendencias', err);
+    }
+    return;
+  }
+
+  if (command === 'grabar') {
+    let requestedMode: RecordingMode | null = null;
+    if (arg.length > 0) {
+      const normalized = arg.toLowerCase();
+      if (normalized === 'oficina') {
+        requestedMode = 'oficina';
+      } else if (normalized === 'virtual' || normalized === 'virtual_duo') {
+        requestedMode = 'virtual_duo';
+      } else {
+        await telegram.sendMessage({
+          chatId,
+          text: 'ℹ️ Usa <code>/grabar</code>, <code>/grabar oficina</code> o <code>/grabar virtual</code>.',
+          parseMode: 'HTML',
+        });
+        return;
+      }
+    }
+
+    await telegram.sendMessage({
+      chatId,
+      text: requestedMode
+        ? `🎬 Preparando guion de Reel en modalidad <b>${requestedMode === 'oficina' ? 'Oficina' : 'Virtual Dúo'}</b>…`
+        : '🎬 Preparando recomendación de Reel/Video corto para FabSoft…',
+      parseMode: 'HTML',
+    });
+
+    try {
+      await generateAndSendRecordingIdea(requestedMode, chatId);
+    } catch (err) {
+      console.error('[telegram] /grabar failed:', err);
+      await notifyError(chatId, '/grabar', err);
+    }
   }
 }
 
@@ -195,6 +269,37 @@ async function handleCallbackQuery(
   }
 
   const data = callback.data ?? '';
+
+  if (data === 'refresh_trends') {
+    await telegram.answerCallbackQuery({
+      callbackQueryId: callback.id,
+      text: 'Buscando nuevas tendencias…',
+    });
+
+    if (messageId !== undefined) {
+      await telegram.editMessageReplyMarkup({ chatId, messageId }).catch(() => {});
+    }
+
+    await telegram.sendMessage({
+      chatId,
+      text: '🔄 Buscando 4 nuevas tendencias tech y de negocio…',
+    });
+
+    try {
+      const ideas = await generateAndSaveTrendIdeas(null);
+      await telegram.sendMessage({
+        chatId,
+        text: formatTrendsMessage(ideas, null),
+        parseMode: 'HTML',
+        replyMarkup: buildTrendsKeyboard(ideas),
+      });
+    } catch (err) {
+      console.error('[telegram] refresh_trends failed:', err);
+      await notifyError(chatId, 'Nuevas tendencias', err);
+    }
+    return;
+  }
+
   const separatorIdx = data.indexOf(':');
   if (separatorIdx === -1) {
     await telegram.answerCallbackQuery({
@@ -206,6 +311,42 @@ async function handleCallbackQuery(
 
   const action = data.slice(0, separatorIdx);
   const postId = data.slice(separatorIdx + 1);
+
+  if (action === 'pick_idea') {
+    const selectedIdea = await markIdeaSuggestionSelected(postId);
+    if (!selectedIdea) {
+      await telegram.answerCallbackQuery({
+        callbackQueryId: callback.id,
+        text: 'Esta idea ya fue seleccionada o no existe.',
+        showAlert: true,
+      });
+      return;
+    }
+
+    await telegram.answerCallbackQuery({
+      callbackQueryId: callback.id,
+      text: 'Generando propuesta…',
+    });
+
+    if (messageId !== undefined) {
+      await telegram.editMessageReplyMarkup({ chatId, messageId }).catch(() => {});
+    }
+
+    const topicPrompt = `${selectedIdea.title} — ${selectedIdea.angle}`;
+    await telegram.sendMessage({
+      chatId,
+      text: `🚀 Generando propuesta a partir de tendencia:\n<b>${escapeHtml(selectedIdea.title)}</b>…`,
+      parseMode: 'HTML',
+    });
+
+    try {
+      await generateAndSendPost(topicPrompt);
+    } catch (err) {
+      console.error('[telegram] pick_idea failed:', err);
+      await notifyError(chatId, 'Generar desde tendencia', err);
+    }
+    return;
+  }
 
   if (action === 'approve') {
     const claimed = await claimPostForPublishing(postId);

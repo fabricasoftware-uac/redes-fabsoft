@@ -51,3 +51,34 @@ export const artDirectorOutputSchema = z.object({
 });
 
 export type ArtDirectorOutput = z.infer<typeof artDirectorOutputSchema>;
+
+export const trendIdeaItemSchema = z.object({
+  title: z.string().min(5).max(140),
+  pillar: pillarSchema,
+  angle: z.string().min(10).max(260),
+  whyTrending: z.string().min(10).max(260),
+});
+
+export type TrendIdeaItem = z.infer<typeof trendIdeaItemSchema>;
+
+export const trendsOutputSchema = z.object({
+  ideas: z.array(trendIdeaItemSchema).length(4),
+});
+
+export type TrendsOutput = z.infer<typeof trendsOutputSchema>;
+
+export const recordingModeSchema = z.enum(['oficina', 'virtual_duo']);
+
+export type RecordingMode = z.infer<typeof recordingModeSchema>;
+
+export const recordingIdeaOutputSchema = z.object({
+  mode: recordingModeSchema,
+  title: z.string().min(5).max(140),
+  durationSeconds: z.coerce.number().int().min(20).max(90),
+  hook: z.string().min(8).max(240),
+  scriptSteps: z.array(z.string().min(5).max(280)).min(3).max(4),
+  filmingTip: z.string().min(8).max(300),
+  cta: z.string().min(5).max(220),
+});
+
+export type RecordingIdeaOutput = z.infer<typeof recordingIdeaOutputSchema>;
