@@ -1,0 +1,41 @@
+{
+  "name": "redes-fabsoft",
+  "version": "1.0.0",
+  "description": "Pipeline agéntico de redes sociales para FabSoft (Gemini + Satori/Sharp + R2 + Telegram + Instagram)",
+  "type": "module",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "migrate": "tsx src/db/migrate.ts",
+    "check": "tsx src/scripts/checkConnections.ts",
+    "preview:local": "tsx src/scripts/testPreview.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.750.0",
+    "@fontsource/inter": "^5.2.5",
+    "@fontsource/space-grotesk": "^5.2.5",
+    "@google/genai": "^1.0.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.1",
+    "node-cron": "^3.0.3",
+    "pg": "^8.14.1",
+    "satori": "^0.12.2",
+    "sharp": "^0.33.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/node-cron": "^3.0.11",
+    "@types/pg": "^8.11.11",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}

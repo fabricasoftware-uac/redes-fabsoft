@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables (never commit real secrets)
+.env
+.env.local
+.env.*.local
+inspo/variables.txt
+!.env.example
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
+# Temporary & preview artifacts
+tmp/
+preview-output/
