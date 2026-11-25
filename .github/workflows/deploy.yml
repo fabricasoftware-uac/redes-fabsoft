@@ -43,10 +43,11 @@ jobs:
         run: |
           set -euo pipefail
           install -d -m 700 ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          ssh-keygen -yf ~/.ssh/deploy_key >/dev/null
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}"
+          ssh -T -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}"
 
       - name: Verify public health endpoint
         run: |
