@@ -185,6 +185,23 @@ export type AudienceKey = keyof typeof BRAND_KIT.audiences;
 export type ToneModeKey = keyof typeof BRAND_KIT.toneModes;
 export type TemplateKey = 'dark_tech_hero' | 'editorial_light' | 'dev_tip_card';
 
+export function buildCurrentDateContext(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+
+  const year = parts.find((p) => p.type === 'year')?.value ?? String(now.getUTCFullYear());
+  const month = parts.find((p) => p.type === 'month')?.value ?? '01';
+  const day = parts.find((p) => p.type === 'day')?.value ?? '01';
+  const isoDate = `${year}-${month}-${day}`;
+
+  return `FECHA ACTUAL REAL (Colombia): ${isoDate} (AÑO ACTUAL: ${year}).
+REGLA TEMPORAL ESTRICTA: Estamos en ${year}. NUNCA menciones 2024 ni 2025 como si fueran el año actual ni escribas fechas desactualizadas en titulares, slides o copys.`;
+}
+
 export function buildBrandContextPrompt(): string {
   const servicesList = BRAND_KIT.services
     .map((s) => `- ${s.name}: ${s.description}`)

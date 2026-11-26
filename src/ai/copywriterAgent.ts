@@ -1,4 +1,4 @@
-import { buildBrandContextPrompt } from '../config/brandKit.js';
+import { buildBrandContextPrompt, buildCurrentDateContext } from '../config/brandKit.js';
 import type { AIProvider } from './provider.js';
 import { copywriterOutputSchema, type CopywriterOutput } from './schemas.js';
 
@@ -66,7 +66,7 @@ export async function runCopywriterAgent(
     ? `\nFEEDBACK DE REGENERACIÓN:\n${input.feedback}\nGenera un ángulo diferente y mejorado.`
     : '';
 
-  const userPrompt = `${topicInstruction}\n\n${recentBlock}${feedbackBlock}`;
+  const userPrompt = `${buildCurrentDateContext()}\n\n${topicInstruction}\n\n${recentBlock}${feedbackBlock}`;
 
   const output = await provider.generateJson({
     systemInstruction: SYSTEM_INSTRUCTION,

@@ -30,10 +30,13 @@ export function buildApprovalKeyboard(postId: string): InlineKeyboardMarkup {
         { text: '❌ Descartar', callback_data: `discard:${postId}` },
       ],
       [
+        { text: '🛠 Corregir con IA', callback_data: `revise_ai:${postId}` },
+        { text: '✏️ Editar Copy', callback_data: `edit_copy:${postId}` },
+      ],
+      [
         { text: '🔄 Regenerar Copy', callback_data: `regen_copy:${postId}` },
         { text: '🎨 Regenerar Imagen', callback_data: `regen_img:${postId}` },
       ],
-      [{ text: '✏️ Editar Copy', callback_data: `edit_copy:${postId}` }],
     ],
   };
 }
@@ -46,9 +49,10 @@ export function buildCarouselApprovalKeyboard(postId: string): InlineKeyboardMar
         { text: '❌ Descartar', callback_data: `discard:${postId}` },
       ],
       [
-        { text: '🔄 Regenerar Copy', callback_data: `regen_copy:${postId}` },
+        { text: '🛠 Corregir con IA', callback_data: `revise_ai:${postId}` },
         { text: '✏️ Editar Copy', callback_data: `edit_copy:${postId}` },
       ],
+      [{ text: '🔄 Regenerar Carrusel', callback_data: `regen_copy:${postId}` }],
     ],
   };
 }
@@ -285,7 +289,10 @@ export async function generateAndSendPost(topic: string | null): Promise<SocialP
   return sendPostPreviewToTelegram(post);
 }
 
-export async function regeneratePostCopy(postId: string): Promise<SocialPost> {
+export async function regeneratePostCopy(
+  postId: string,
+  customInstruction?: string
+): Promise<SocialPost> {
   const existing = await getPostById(postId);
   if (!existing) {
     throw new Error(`Post ${postId} not found`);
@@ -296,10 +303,14 @@ export async function regeneratePostCopy(postId: string): Promise<SocialPost> {
   const recentTopics = await getRecentTopics(15);
 
   if (existing.mediaUrls.length > 1) {
+    const feedback = customInstruction
+      ? `CORRECCIÓN OBLIGATORIA DEL EQUIPO: "${customInstruction}".\nPortada actual: "${existing.headline}". Caption actual: "${existing.caption.slice(0, 500)}".\nAplica EXACTAMENTE esta corrección en todos los slides y caption manteniendo el pilar "${existing.pillar}".`
+      : `La portada anterior era "${existing.headline}". Mantén el pilar "${existing.pillar}", pero propón un enfoque, slides y copy mucho más potentes y guardables.`;
+
     const carousel = await runCarouselAgent(ai, {
       topic: existing.topic,
       recentTopics,
-      feedback: `La portada anterior era "${existing.headline}". Mantén el pilar "${existing.pillar}", pero propón un enfoque, slides y copy mucho más potentes y guardables.`,
+      feedback,
     });
 
     const slideBuffers = await composeCarouselSlides(carousel);
@@ -330,10 +341,14 @@ export async function regeneratePostCopy(postId: string): Promise<SocialPost> {
     return sendCarouselPreviewToTelegram(updated);
   }
 
+  const feedback = customInstruction
+    ? `CORRECCIÓN OBLIGATORIA DEL EQUIPO: "${customInstruction}".\nTitular actual: "${existing.headline}". Bajada actual: "${existing.subheadline ?? ''}". Caption actual: "${existing.caption.slice(0, 600)}".\nMantén la plantilla "${existing.template}" y el pilar "${existing.pillar}", aplicando EXACTAMENTE la corrección solicitada en titular, bajada y caption.`
+    : `El titular anterior era "${existing.headline}". Mantén la plantilla "${existing.template}" y el pilar "${existing.pillar}", pero propón un gancho, titular y copy mucho más potentes y distintos.`;
+
   const copy = await runCopywriterAgent(ai, {
     topic: existing.topic,
     recentTopics,
-    feedback: `El titular anterior era "${existing.headline}". Mantén la plantilla "${existing.template}" y el pilar "${existing.pillar}", pero propón un gancho, titular y copy mucho más potentes y distintos.`,
+    feedback,
   });
 
   // Re-compose image with new typography (re-generating background if template needs it)

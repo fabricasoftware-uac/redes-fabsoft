@@ -1,4 +1,4 @@
-import { BRAND_KIT, buildBrandContextPrompt } from '../config/brandKit.js';
+import { BRAND_KIT, buildBrandContextPrompt, buildCurrentDateContext } from '../config/brandKit.js';
 import {
   getRecentIdeaTitles,
   saveIdeaSuggestions,
@@ -60,8 +60,7 @@ export async function runTrendsAgent(
     ? `ENFOQUE SOLICITADO POR EL EQUIPO:\n"${input.focus}"\nPrioriza tendencias actuales conectadas con este enfoque.`
     : 'ENFOQUE: Radar general de IA, desarrollo de software, automatización para negocios y ecosistema tech LATAM.';
 
-  const today = new Date().toISOString().slice(0, 10);
-  const userPrompt = `FECHA ACTUAL: ${today}\n\n${focusBlock}\n\n${recentBlock}\n\nPropón 4 ideas frescas y actuales.`;
+  const userPrompt = `${buildCurrentDateContext()}\n\n${focusBlock}\n\n${recentBlock}\n\nPropón 4 ideas frescas y actuales.`;
 
   return provider.generateJson({
     systemInstruction: SYSTEM_INSTRUCTION,

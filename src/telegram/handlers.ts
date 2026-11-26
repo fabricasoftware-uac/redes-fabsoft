@@ -11,6 +11,7 @@ import { markIdeaSuggestionSelected } from '../db/ideasRepository.js';
 import {
   claimPostForPublishing,
   findPostAwaitingEditByUser,
+  getLatestPendingApprovalPost,
   getPostById,
   getStatusSummary,
   markPostDiscarded,
@@ -66,6 +67,9 @@ export const telegramUpdateSchema = z.object({
 
 export type TelegramUpdate = z.infer<typeof telegramUpdateSchema>;
 
+// Tracks users who clicked "🛠 Corregir con IA" and are about to send their correction prompt
+const pendingAiRevisions = new Map<number, string>();
+
 function isAuthorizedChat(chatId: number): boolean {
   const allowedChatId = requireEnv('TELEGRAM_CHAT_ID').trim();
   return String(chatId) === allowedChatId;
@@ -106,14 +110,15 @@ async function handleCommand(
       '• <code>/idea &lt;tema&gt;</code> — Genera una propuesta completa sobre un tema específico.',
       '• <code>/idea</code> — Genera una propuesta autónoma (anti-repetición).',
       '• <code>/carrusel [tema]</code> — Genera un carrusel editorial de 5 slides (Portada + 3 puntos + Cierre).',
+      '• <code>/corregir &lt;instrucción&gt;</code> — Corrige con IA la última propuesta pendiente (ej. fechas, titular, enfoque).',
       '• <code>/tendencias [enfoque]</code> — Sugiere 4 ideas frescas en tendencia con botones para generar.',
-      '• <code>/grabar [oficina|virtual]</code> — Recomienda un guion corto (30–45s) para grabar Reel/Video.',
+      '• <code>/grabar [oficina|virtual]</code> — Recomienda un guion 5 Actos (40–55s) para grabar Reel/TikTok.',
       '• <code>/status</code> — Muestra el resumen de publicaciones y estado del sistema.',
-      '• <code>/cancel</code> — Cancela una edición de copy en curso.',
+      '• <code>/cancel</code> — Cancela una edición o corrección en curso.',
       '• <code>/help</code> — Muestra esta ayuda.',
       '',
       '<b>Flujo HITL:</b>',
-      'Usa los botones bajo cada propuesta: ✅ Aprobar, 🔄 Regenerar Copy, 🎨 Regenerar Imagen, ✏️ Editar Copy o ❌ Descartar.',
+      'Usa los botones bajo cada propuesta: ✅ Aprobar, 🛠 Corregir con IA, ✏️ Editar Copy, 🔄 Regenerar o ❌ Descartar.',
     ].join('\n');
 
     await telegram.sendMessage({ chatId, text: helpText, parseMode: 'HTML' });
@@ -121,18 +126,56 @@ async function handleCommand(
   }
 
   if (command === 'cancel' && userId !== undefined) {
+    const hadAiRevision = pendingAiRevisions.delete(userId);
     const pendingEdit = await findPostAwaitingEditByUser(userId);
     if (pendingEdit) {
       await setAwaitingEdit(pendingEdit.id, null);
+    }
+    if (pendingEdit || hadAiRevision) {
       await telegram.sendMessage({
         chatId,
-        text: '✅ Edición cancelada.',
+        text: '✅ Edición/corrección cancelada.',
       });
     } else {
       await telegram.sendMessage({
         chatId,
         text: 'ℹ️ No tienes ninguna edición pendiente.',
       });
+    }
+    return;
+  }
+
+  if (command === 'corregir') {
+    if (arg.length === 0) {
+      await telegram.sendMessage({
+        chatId,
+        text: 'ℹ️ Indica qué corregir. Ejemplo:\n<code>/corregir cambia el año a 2026 y haz el titular más corto</code>',
+        parseMode: 'HTML',
+      });
+      return;
+    }
+
+    const latestPending = await getLatestPendingApprovalPost();
+    if (!latestPending) {
+      await telegram.sendMessage({
+        chatId,
+        text: 'ℹ️ No hay ninguna propuesta pendiente de aprobación para corregir. Genera una con <code>/idea</code> o <code>/carrusel</code>.\n<i>(Nota: Instagram no permite editar por API posts ya publicados; esos se editan directo en la app de Instagram.)</i>',
+        parseMode: 'HTML',
+      });
+      return;
+    }
+
+    await telegram.sendMessage({
+      chatId,
+      text: `🛠 Aplicando corrección con IA sobre <i>"${escapeHtml(latestPending.headline)}"</i>…`,
+      parseMode: 'HTML',
+    });
+
+    try {
+      await regeneratePostCopy(latestPending.id, arg);
+    } catch (err) {
+      console.error('[telegram] /corregir failed:', err);
+      await notifyError(chatId, '/corregir', err);
     }
     return;
   }
@@ -483,6 +526,36 @@ async function handleCallbackQuery(
     return;
   }
 
+  if (action === 'revise_ai') {
+    const post = await getPostById(postId);
+    if (!post || post.status !== 'pending_approval') {
+      await telegram.answerCallbackQuery({
+        callbackQueryId: callback.id,
+        text: 'Esta propuesta ya no está pendiente de aprobación.',
+        showAlert: true,
+      });
+      return;
+    }
+
+    await setAwaitingEdit(postId, null);
+    pendingAiRevisions.set(callback.from.id, postId);
+    await telegram.answerCallbackQuery({
+      callbackQueryId: callback.id,
+      text: 'Escribe qué quieres corregir.',
+    });
+
+    const userLabel = callback.from.username
+      ? `@${callback.from.username}`
+      : callback.from.first_name ?? 'usuario';
+
+    await telegram.sendMessage({
+      chatId,
+      text: `🛠 <b>${escapeHtml(userLabel)}</b>, escribe tu instrucción de corrección para:\n<i>"${escapeHtml(post.headline)}"</i>\n\nEj: <i>"cambia el año a 2026 y enfoca el punto 2 en restaurantes"</i>\n(Usa <code>/cancel</code> para cancelar.)`,
+      parseMode: 'HTML',
+    });
+    return;
+  }
+
   if (action === 'edit_copy') {
     const post = await getPostById(postId);
     if (!post || post.status !== 'pending_approval') {
@@ -615,8 +688,24 @@ export async function processTelegramUpdate(rawUpdate: unknown): Promise<void> {
     return;
   }
 
-  // Check if this user is currently editing a post caption
+  // Check if this user is currently submitting an AI correction or editing a post caption
   if (msg.from?.id !== undefined) {
+    const revisionPostId = pendingAiRevisions.get(msg.from.id);
+    if (revisionPostId) {
+      pendingAiRevisions.delete(msg.from.id);
+      await getTelegramClient().sendMessage({
+        chatId: msg.chat.id,
+        text: '🛠 Aplicando tu corrección con IA y regenerando la vista previa…',
+      });
+      try {
+        await regeneratePostCopy(revisionPostId, text);
+      } catch (err) {
+        console.error('[telegram] AI revision failed:', err);
+        await notifyError(msg.chat.id, 'Corregir con IA', err);
+      }
+      return;
+    }
+
     const awaitingPost = await findPostAwaitingEditByUser(msg.from.id);
     if (awaitingPost) {
       try {

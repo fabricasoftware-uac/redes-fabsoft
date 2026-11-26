@@ -1,4 +1,4 @@
-import { buildBrandContextPrompt } from '../config/brandKit.js';
+import { buildBrandContextPrompt, buildCurrentDateContext } from '../config/brandKit.js';
 import { requireEnv } from '../config/env.js';
 import {
   getLastRecordingMode,
@@ -81,6 +81,8 @@ export async function runRecordingAgent(
       : 'TÍTULOS RECIENTES: Ninguno todavía.';
 
   const userPrompt = [
+    buildCurrentDateContext(),
+    '',
     `MODALIDAD SOLICITADA: "${input.mode}"`,
     MODE_DESCRIPTIONS[input.mode],
     '',

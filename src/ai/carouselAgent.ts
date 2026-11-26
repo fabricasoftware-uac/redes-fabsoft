@@ -1,4 +1,4 @@
-import { buildBrandContextPrompt } from '../config/brandKit.js';
+import { buildBrandContextPrompt, buildCurrentDateContext } from '../config/brandKit.js';
 import type { AIProvider } from './provider.js';
 import { carouselOutputSchema, type CarouselOutput } from './schemas.js';
 
@@ -100,7 +100,7 @@ export async function runCarouselAgent(
     ? `\nFEEDBACK DE REGENERACIÓN:\n${input.feedback}\nPropón un ángulo diferente, más claro y más guardable.`
     : '';
 
-  const userPrompt = `${topicInstruction}\n\n${recentBlock}${feedbackBlock}`;
+  const userPrompt = `${buildCurrentDateContext()}\n\n${topicInstruction}\n\n${recentBlock}${feedbackBlock}`;
 
   const output = await provider.generateJson({
     systemInstruction: SYSTEM_INSTRUCTION,

@@ -160,6 +160,16 @@ export async function getPostById(id: string): Promise<SocialPost | null> {
   return res.rows[0] ? mapRow(res.rows[0]) : null;
 }
 
+export async function getLatestPendingApprovalPost(): Promise<SocialPost | null> {
+  const res = await query<SocialPostRow>(
+    `SELECT * FROM social_posts
+     WHERE status = 'pending_approval'
+     ORDER BY updated_at DESC
+     LIMIT 1`
+  );
+  return res.rows[0] ? mapRow(res.rows[0]) : null;
+}
+
 export async function getRecentTopics(limit = 15): Promise<string[]> {
   const res = await query<{ topic: string; headline: string }>(
     `SELECT topic, headline
