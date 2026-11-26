@@ -52,11 +52,20 @@ export const artDirectorOutputSchema = z.object({
 
 export type ArtDirectorOutput = z.infer<typeof artDirectorOutputSchema>;
 
+const trimmedMax = (min: number, max: number) =>
+  z
+    .string()
+    .trim()
+    .min(min)
+    .transform((val) =>
+      val.length > max ? `${val.slice(0, max - 1).trimEnd()}…` : val
+    );
+
 export const trendIdeaItemSchema = z.object({
-  title: z.string().min(5).max(140),
+  title: trimmedMax(5, 160),
   pillar: pillarSchema,
-  angle: z.string().min(10).max(260),
-  whyTrending: z.string().min(10).max(260),
+  angle: trimmedMax(10, 420),
+  whyTrending: trimmedMax(10, 420),
 });
 
 export type TrendIdeaItem = z.infer<typeof trendIdeaItemSchema>;
@@ -73,12 +82,12 @@ export type RecordingMode = z.infer<typeof recordingModeSchema>;
 
 export const recordingIdeaOutputSchema = z.object({
   mode: recordingModeSchema,
-  title: z.string().min(5).max(140),
+  title: trimmedMax(5, 160),
   durationSeconds: z.coerce.number().int().min(20).max(90),
-  hook: z.string().min(8).max(240),
-  scriptSteps: z.array(z.string().min(5).max(280)).min(3).max(4),
-  filmingTip: z.string().min(8).max(300),
-  cta: z.string().min(5).max(220),
+  hook: trimmedMax(8, 320),
+  scriptSteps: z.array(trimmedMax(5, 420)).min(3).max(4),
+  filmingTip: trimmedMax(8, 420),
+  cta: trimmedMax(5, 280),
 });
 
 export type RecordingIdeaOutput = z.infer<typeof recordingIdeaOutputSchema>;

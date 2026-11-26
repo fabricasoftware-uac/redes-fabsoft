@@ -33,10 +33,10 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido con esta estructura exacta:
 {
   "ideas": [
     {
-      "title": "Título claro, concreto y llamativo de la idea (máximo 120 caracteres)",
+      "title": "Título claro, concreto y llamativo de la idea (máximo 110 caracteres)",
       "pillar": "educacion" | "tendencias" | "productos" | "noticias" | "proceso" | "inspiracion",
-      "angle": "Ángulo específico de FabSoft: cómo aterrizarlo para empresas o devs en LATAM",
-      "whyTrending": "Por qué este tema es tendencia ahora y genera conversación real"
+      "angle": "Ángulo específico de FabSoft: cómo aterrizarlo para empresas o devs en LATAM (máx. 200 caracteres, 1-2 frases directas, sin URLs)",
+      "whyTrending": "Por qué este tema es tendencia ahora y genera conversación real (máx. 200 caracteres, 1-2 frases directas, sin URLs ni citas)"
     }
   ]
 }
