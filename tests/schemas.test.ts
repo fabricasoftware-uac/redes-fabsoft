@@ -254,7 +254,14 @@ describe('recordingIdeaOutputSchema', () => {
     expect(
       recordingIdeaOutputSchema.safeParse({
         ...validRecordingPayload,
-        scriptSteps: ['Paso 1 concreto', 'Paso 2 concreto', 'Paso 3 concreto', 'Paso 4 concreto', 'Paso 5 extra'],
+        scriptSteps: [
+          'Paso 1 concreto',
+          'Paso 2 concreto',
+          'Paso 3 concreto',
+          'Paso 4 concreto',
+          'Paso 5 concreto',
+          'Paso 6 extra',
+        ],
       }).success
     ).toBe(false);
   });

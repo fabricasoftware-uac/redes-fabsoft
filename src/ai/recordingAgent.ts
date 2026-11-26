@@ -21,38 +21,55 @@ export interface RunRecordingAgentInput {
 
 const MODE_DESCRIPTIONS: Record<RecordingMode, string> = {
   oficina:
-    'OFICINA PRESENCIAL: Los dos fundadores grabando en vivo desde su oficina en Emprendelab Autónoma (Popayán): escritorio, laptops, pizarra, café, detrás de escena real construyendo proyectos de software e IA.',
+    'OFICINA PRESENCIAL (Popayán — Emprendelab Autónoma): Grabación ágil con celular y luz natural mostrando móvil en mano, pantalla de laptop, rediseño UI/UX mobile-first o detrás de escena construyendo software real.',
   virtual_duo:
-    'VIRTUAL DÚO: Los dos socios grabando en videollamada / pantalla compartida (Meet, Discord o Loom): debate tech rápido, code review real, mostrando un feature funcionando o comparando herramientas.',
+    'VIRTUAL DÚO (Popayán ↔ Garzón, Huila — Discord/Meet): Los dos estudiantes de Ingeniería de Software trabajando en remoto — Compañero 1 en Popayán (Front-end / UI-UX / Figma / Tailwind) y Compañero 2 en Garzón (Arquitectura / Backend / Core Web Vitals / IA / WhatsApp) — mostrando el proceso real en pantalla compartida.',
 };
 
-const SYSTEM_INSTRUCTION = `Eres el director creativo de video corto (Reels / TikTok / Shorts de 30 a 45 segundos) para los dos fundadores de FabSoft (Emprendelab Autónoma, Popayán, Colombia).
-Tu trabajo es entregar una recomendación de grabación ultra accionable, fácil de ejecutar en menos de 15 minutos sin equipo de cine (solo celular, luz natural o pantalla compartida), que construya marca personal, autoridad técnica y cercanía (Build in Public + impacto B2B).
+const SYSTEM_INSTRUCTION = `Eres el Agente Especialista en Guionizado Orgánico y Viralización B2B (Reels & TikTok verticales 9:16, 40 a 55 segundos) para los dos fundadores de FabSoft (fabsoft.app | @fabsoft._).
+
+IDENTIDAD DE LOS CREADORES (BASE DEL STORYTELLING):
+- Dos estudiantes universitarios de Ingeniería de Software trabajando en dupla sin burocracia (sprints de 5 a 10 días):
+  • Compañero 1 (Popayán): Front-end / UI-UX, micro-interacciones, componentes limpios y experiencia móvil.
+  • Compañero 2 / Narrador (Garzón, Huila - Remoto): Arquitectura, backend, rendimiento (Core Web Vitals), IA y flujos de conversión a WhatsApp.
+- Objetivo real: generar retención masiva para atraer dueños de negocios locales/regionales, pymes y emprendedores que necesiten modernización visual (UI/UX), velocidad web o automatización (SpartanBot, Xeiva, plataformas a medida).
 
 ${buildBrandContextPrompt()}
+
+FÓRMULA OBLIGATORIA DE RETENCIÓN EN 5 ACTOS (40–55s):
+Cada guion DEBE seguir exactamente estos 5 actos en "scriptSteps" (5 elementos, cada uno empezando por su rango de tiempo):
+1. "[0:00-0:04] GANCHO:" Stop the Scroll — imagen de fricción móvil evidente + afirmación contundente de identidad/reto o costo oculto.
+2. "[0:04-0:15] FRICCIÓN:" Mostrar el dolor real del usuario en celular (menú PDF con zoom, carga >4s, botones diminutos, sin WhatsApp directo) con empatía y RESPETO INSTITUCIONAL (jamás llamar "basura" u "horrible" a una web).
+3. "[0:15-0:32] MONTAJE (Popayán–Garzón):" Build in Public con cortes rápidos (1.5–2.5s): llamada Discord/Meet, Figma/VS Code/Tailwind/IA, 1 mejora visual + 1 mejora técnica explicada en impacto de negocio.
+4. "[0:32-0:45] ANTES VS. DESPUÉS:" Contraste visual satisfactorio en vista móvil (interfaz vieja lenta vs. interfaz moderna limpia con métricas ej. 4.8s → 0.5s).
+5. "[0:45-0:55] CIERRE & CTA INVERSO:" Pregunta abierta para comentarios o invitación suave al DM. NUNCA decir "contrátanos hoy" ni sonar a infomercial.
 
 FORMATO DE RESPUESTA:
 Devuelve EXCLUSIVAMENTE un objeto JSON válido con esta estructura exacta:
 {
   "mode": "oficina" | "virtual_duo",
-  "title": "Título atractivo del Reel/Video corto",
-  "durationSeconds": 35,
-  "hook": "Frase o acción exacta de los primeros 3 segundos para frenar el scroll",
+  "title": "Título del Video / Concepto (máx. 110 caracteres)",
+  "angle": "Rediseño express | Optimización de velocidad | UI Roast constructivo | Build in Public",
+  "coverHook": "TEXTO CORTO DE 3 PALABRAS PARA MINIATURA",
+  "durationSeconds": 48,
+  "hook": "Frase exacta de voz en off para los primeros 0:00-0:04 segundos",
   "scriptSteps": [
-    "Paso 1 concreto (quién habla o qué se muestra en pantalla)",
-    "Paso 2 concreto",
-    "Paso 3 concreto"
+    "[0:00-0:04] GANCHO — Pantalla: ... | Audio: ... | Texto: ...",
+    "[0:04-0:15] FRICCIÓN — Pantalla: ... | Audio: ... | Texto: ...",
+    "[0:15-0:32] MONTAJE (Popayán–Garzón) — Pantalla: ... | Audio: ... | Texto: ...",
+    "[0:32-0:45] ANTES VS. DESPUÉS — Pantalla: ... | Audio: ... | Texto: ...",
+    "[0:45-0:55] CIERRE — Pantalla: ... | Audio: ... | Texto: ..."
   ],
-  "filmingTip": "Consejo práctico de cámara, encuadre, audio o ritmo para que se vea natural y dinámico",
-  "cta": "Llamado a la acción final breve y coherente"
+  "filmingTip": "Consejo práctico de grabación vertical 9:16, encuadre móvil, cortes cada 2s o sonido (whoosh/click)",
+  "cta": "CTA inverso y orgánico (pregunta para comentarios o invitación suave al DM, nunca infomercial)"
 }
 
 REGLAS CRÍTICAS:
-1. "durationSeconds" debe estar entre 30 y 45 segundos.
-2. "scriptSteps" debe tener entre 3 y 4 pasos concretos y accionables.
+1. "durationSeconds" debe estar entre 40 y 55 segundos.
+2. "scriptSteps" DEBE tener exactamente los 5 actos con el formato [tiempo] ACTO — Pantalla / Audio / Texto.
 3. "mode" DEBE coincidir exactamente con la modalidad solicitada.
-4. Todo en español natural de Latinoamérica (Colombia), cercano, auténtico y sin humo.
-5. No repitas títulos recientes.`;
+4. Principio de Respeto Institucional y enfoque Mobile First en todo el guion.
+5. Todo en español natural de Colombia, cercano y sin humo. No repitas títulos recientes.`;
 
 export async function runRecordingAgent(
   provider: AIProvider,
@@ -97,30 +114,39 @@ export async function resolveNextRecordingMode(
 
 export function formatRecordingIdeaMessage(
   idea: RecordingIdea,
-  durationSeconds = 40
+  options: { durationSeconds?: number; angle?: string; coverHook?: string } = {}
 ): string {
+  const durationSeconds = options.durationSeconds ?? 48;
   const modeBadge =
     idea.mode === 'oficina'
-      ? '🏢 Oficina Presencial (Emprendelab)'
-      : '💻 Virtual Dúo (Videollamada / Pantalla)';
+      ? '🏢 Oficina Presencial (Popayán)'
+      : '💻 Virtual Dúo (Popayán ↔ Garzón)';
 
   const stepsLines = idea.scriptSteps
     .map((step, idx) => `${idx + 1}. ${escapeHtml(step)}`)
-    .join('\n');
+    .join('\n\n');
+
+  const metaLines = [
+    '🎬 <b>Guion 5 Actos — Reel / TikTok (9:16)</b>',
+    `📍 <b>Modalidad:</b> ${modeBadge} · ⏱ ~${durationSeconds}s`,
+    ...(options.angle ? [`🎯 <b>Ángulo:</b> ${escapeHtml(options.angle)}`] : []),
+    ...(options.coverHook
+      ? [`🖼 <b>Portada (miniatura):</b> <code>${escapeHtml(options.coverHook)}</code>`]
+      : []),
+  ];
 
   return [
-    '🎬 <b>Recomendación de Grabación — Reel / Video Corto</b>',
-    `📍 <b>Modalidad:</b> ${modeBadge} · ⏱ ~${durationSeconds}s`,
+    ...metaLines,
     '',
     `🔥 <b>${escapeHtml(idea.title)}</b>`,
     '',
-    `🪝 <b>Hook (0–3s):</b>\n<i>"${escapeHtml(idea.hook)}"</i>`,
+    `🪝 <b>Hook (0:00–0:04):</b>\n<i>"${escapeHtml(idea.hook)}"</i>`,
     '',
-    '📝 <b>Guion paso a paso:</b>',
+    '📝 <b>Guion (Fórmula 5 Actos):</b>',
     stepsLines,
     '',
     `🎥 <b>Tip de grabación:</b> ${escapeHtml(idea.filmingTip)}`,
-    `📣 <b>CTA:</b> ${escapeHtml(idea.cta)}`,
+    `📣 <b>CTA Inverso:</b> ${escapeHtml(idea.cta)}`,
   ].join('\n');
 }
 
@@ -148,7 +174,11 @@ export async function generateAndSendRecordingIdea(
 
   await telegram.sendMessage({
     chatId: targetChatId,
-    text: formatRecordingIdeaMessage(saved, generated.durationSeconds),
+    text: formatRecordingIdeaMessage(saved, {
+      durationSeconds: generated.durationSeconds,
+      angle: generated.angle,
+      coverHook: generated.coverHook,
+    }),
     parseMode: 'HTML',
   });
 

@@ -83,9 +83,11 @@ export type RecordingMode = z.infer<typeof recordingModeSchema>;
 export const recordingIdeaOutputSchema = z.object({
   mode: recordingModeSchema,
   title: trimmedMax(5, 160),
+  angle: trimmedMax(5, 120).optional().default('Build in Public / Modernización Web'),
+  coverHook: trimmedMax(3, 60).optional().default('ANTES VS DESPUÉS'),
   durationSeconds: z.coerce.number().int().min(20).max(90),
   hook: trimmedMax(8, 320),
-  scriptSteps: z.array(trimmedMax(5, 420)).min(3).max(4),
+  scriptSteps: z.array(trimmedMax(5, 420)).min(3).max(5),
   filmingTip: trimmedMax(8, 420),
   cta: trimmedMax(5, 280),
 });

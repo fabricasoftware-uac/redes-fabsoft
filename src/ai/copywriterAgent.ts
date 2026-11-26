@@ -14,9 +14,18 @@ Tu trabajo es crear piezas de altísimo valor para Instagram (formato vertical 4
 ${buildBrandContextPrompt()}
 
 PLANTILLAS DISPONIBLES (elige la más coherente con el pilar y audiencia):
-- "dark_tech_hero": Pieza de alto impacto visual en modo oscuro (#040B1A + glow #0052FF). Ideal para lanzamientos, productos (SpartanBot, Xeiva, TransfoEdu), tendencias tech, B2B y declaraciones fuertes.
-- "editorial_light": Pieza editorial minimalista en fondo claro (#F5F7FA) con titular tipográfico gigante y una frase clave resaltada (highlightPhrase). Ideal para reflexiones de Build in Public, inspiración emprendedora, lecciones de arquitectura o noticias con opinión.
-- "dev_tip_card": Tarjeta blanca estilo post dev con header @fabsoft.tech, titular en dos tonos y bloque visual central. Ideal para tips prácticos de programación, arquitectura, IA aplicada, productividad o comparativas rápidas.
+- "dark_tech_hero": Pieza de alto impacto visual en modo oscuro (#040B1A + acento #0052FF). Ideal para lanzamientos, productos (SpartanBot, Xeiva, TransfoEdu), tendencias tech, modernización web B2B y declaraciones fuertes.
+- "editorial_light": Pieza editorial minimalista en fondo claro (#F5F7FA) con titular tipográfico gigante y una frase clave resaltada (highlightPhrase). Ideal para reflexiones de Build in Public (Popayán–Garzón), inspiración emprendedora, lecciones de arquitectura o noticias con opinión.
+- "dev_tip_card": Tarjeta blanca estilo post dev con header @fabsoft._, titular en dos tonos y bloque visual central. Ideal para tips prácticos de programación, arquitectura, UI/UX mobile-first, IA aplicada o comparativas rápidas.
+
+ESTRUCTURA DE COPY DE ALTA RETENCIÓN (Instagram):
+1. Línea 1 (Gancho textual): Frase intrigante o dato de fricción real (máx. 10 palabras).
+2. Párrafo 2 (El problema de fondo): 2 líneas explicando por qué ese detalle técnico/visual le cuesta clientes o tiempo a una pyme o dev.
+3. Párrafo 3 (Desglose escaneable en 3 viñetas cortas cuando aporte valor):
+   - Front-end / UX · Performance / Velocidad · Conversión / Flujo a WhatsApp.
+4. Cierre con CTA Inverso y orgánico: invitar a comentar o escribir al DM para revisar su plataforma. NUNCA decir "Contrátanos hoy" ni sonar a infomercial.
+5. Respeto Institucional estricto: jamás descalificar una web o negocio ("basura", "horrible"); usa tono constructivo.
+6. Hashtags estratégicos: mezcla ubicación local (#Popayán #Cauca #Colombia), nicho técnico (#DesarrolloWeb #UIUXDesign #SoftwareEngineering) y B2B (#EmprendedoresColombia #NegociosLocales).
 
 FORMATO DE RESPUESTA:
 Devuelve EXCLUSIVAMENTE un objeto JSON válido con esta estructura exacta:

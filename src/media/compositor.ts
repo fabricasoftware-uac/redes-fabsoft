@@ -146,7 +146,8 @@ function buildDarkTechHeroTree(
   hasAiBackground: boolean
 ): SatoriNode {
   const { palette } = BRAND_KIT;
-  const label = (input.accentLabel ?? BRAND_KIT.pillars[input.pillar].label).toUpperCase();
+  const pillarInfo = BRAND_KIT.pillars[input.pillar];
+  const label = (input.accentLabel ?? pillarInfo.label).toUpperCase();
   const headlineSize = input.headline.length > 48 ? 64 : input.headline.length > 32 ? 74 : 84;
 
   const rootBackground = hasAiBackground
@@ -157,7 +158,7 @@ function buildDarkTechHeroTree(
     : {
         backgroundColor: palette.deepSpaceBlue,
         backgroundImage:
-          'radial-gradient(circle at 85% 22%, rgba(0,82,255,0.48) 0%, rgba(18,130,255,0.18) 32%, rgba(4,11,26,0) 64%), radial-gradient(circle at 18% 88%, rgba(18,130,255,0.22) 0%, rgba(4,11,26,0) 50%)',
+          'radial-gradient(circle at 85% 22%, rgba(0,82,255,0.44) 0%, rgba(18,130,255,0.14) 32%, rgba(4,11,26,0) 64%), radial-gradient(circle at 18% 88%, rgba(18,130,255,0.18) 0%, rgba(4,11,26,0) 50%)',
       };
 
   return el(
@@ -174,7 +175,7 @@ function buildDarkTechHeroTree(
       ...rootBackground,
     },
     [
-      // Top bar: Logo + Pillar pill
+      // Top bar: Official Logo left + Clean editorial index marker right (no generic AI pill)
       el(
         'div',
         {
@@ -183,46 +184,60 @@ function buildDarkTechHeroTree(
           justifyContent: 'space-between',
           alignItems: 'center',
           width: '100%',
+          paddingBottom: 24,
+          borderBottom: '1px solid rgba(245, 247, 250, 0.12)',
         },
         [
-          imgEl(logoColorUri, 213, 54, { objectFit: 'contain' }),
+          imgEl(logoColorUri, 205, 52, { objectFit: 'contain' }),
           el(
             'div',
             {
               display: 'flex',
+              flexDirection: 'row',
               alignItems: 'center',
-              padding: '10px 22px',
-              borderRadius: 999,
-              backgroundColor: 'rgba(0, 82, 255, 0.22)',
-              border: '1.5px solid rgba(18, 130, 255, 0.55)',
-              color: '#B8ECFF',
-              fontFamily: 'Inter',
-              fontSize: 20,
-              fontWeight: 600,
-              letterSpacing: '0.10em',
+              gap: 12,
             },
-            label
+            [
+              el('div', {
+                display: 'flex',
+                width: 8,
+                height: 8,
+                borderRadius: 999,
+                backgroundColor: palette.orbitCyan,
+              }),
+              el(
+                'div',
+                {
+                  display: 'flex',
+                  color: '#CBD5E1',
+                  fontFamily: 'Inter',
+                  fontSize: 19,
+                  fontWeight: 600,
+                  letterSpacing: '0.16em',
+                },
+                `${pillarInfo.code} / ${label}`
+              ),
+            ]
           ),
         ]
       ),
 
-      // Main typography block (left-aligned)
+      // Main typography block (left-aligned, editorial studio style)
       el(
         'div',
         {
           display: 'flex',
           flexDirection: 'column',
-          maxWidth: 820,
+          maxWidth: 840,
           gap: 30,
         },
         [
-          // Blue accent bar
+          // Thin editorial accent line
           el('div', {
             display: 'flex',
-            width: 88,
-            height: 7,
-            borderRadius: 999,
-            backgroundImage: `linear-gradient(90deg, ${palette.propulsionBlue}, ${palette.orbitCyan})`,
+            width: 72,
+            height: 5,
+            backgroundColor: palette.propulsionBlue,
           }),
           el(
             'div',
@@ -257,7 +272,7 @@ function buildDarkTechHeroTree(
         ]
       ),
 
-      // Footer bar
+      // Footer bar (clean editorial typography, no pill)
       el(
         'div',
         {
@@ -274,11 +289,6 @@ function buildDarkTechHeroTree(
             'div',
             {
               display: 'flex',
-              alignItems: 'center',
-              padding: '12px 26px',
-              borderRadius: 999,
-              backgroundColor: 'rgba(245, 247, 250, 0.09)',
-              border: '1px solid rgba(245, 247, 250, 0.22)',
               color: palette.stellarWhite,
               fontFamily: 'Inter',
               fontSize: 22,
@@ -293,11 +303,11 @@ function buildDarkTechHeroTree(
               display: 'flex',
               color: palette.mutedSlate,
               fontFamily: 'Inter',
-              fontSize: 20,
+              fontSize: 21,
               fontWeight: 500,
-              letterSpacing: '0.14em',
+              letterSpacing: '0.04em',
             },
-            'SOFTWARE · IA · CLOUD'
+            BRAND_KIT.handle
           ),
         ]
       ),
@@ -843,17 +853,31 @@ function buildDevTipCardTree(
             'div',
             {
               display: 'flex',
-              padding: '10px 22px',
-              borderRadius: 999,
-              backgroundColor: '#EFF6FF',
-              border: '1.5px solid #BFDBFE',
-              color: palette.propulsionBlue,
-              fontFamily: 'Inter',
-              fontSize: 19,
-              fontWeight: 700,
-              letterSpacing: '0.08em',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
             },
-            label
+            [
+              el('div', {
+                display: 'flex',
+                width: 8,
+                height: 8,
+                borderRadius: 999,
+                backgroundColor: palette.propulsionBlue,
+              }),
+              el(
+                'div',
+                {
+                  display: 'flex',
+                  color: palette.darkSlate,
+                  fontFamily: 'Inter',
+                  fontSize: 18,
+                  fontWeight: 600,
+                  letterSpacing: '0.14em',
+                },
+                `${BRAND_KIT.pillars[input.pillar].code} / ${label}`
+              ),
+            ]
           ),
         ]
       ),
