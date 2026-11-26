@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { runArtDirectorAgent } from '../ai/artDirectorAgent.js';
+import { runCarouselAgent } from '../ai/carouselAgent.js';
 import { runCopywriterAgent } from '../ai/copywriterAgent.js';
 import { getAIProvider } from '../ai/provider.js';
 import { BRAND_KIT } from '../config/brandKit.js';
@@ -13,7 +14,7 @@ import {
   updatePostMedia,
   type SocialPost,
 } from '../db/postsRepository.js';
-import { composePostImage } from '../media/compositor.js';
+import { composeCarouselSlides, composePostImage } from '../media/compositor.js';
 import { getMediaStorage } from '../media/storage.js';
 import {
   escapeHtml,
@@ -33,6 +34,21 @@ export function buildApprovalKeyboard(postId: string): InlineKeyboardMarkup {
         { text: '🎨 Regenerar Imagen', callback_data: `regen_img:${postId}` },
       ],
       [{ text: '✏️ Editar Copy', callback_data: `edit_copy:${postId}` }],
+    ],
+  };
+}
+
+export function buildCarouselApprovalKeyboard(postId: string): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: '✅ Aprobar', callback_data: `approve:${postId}` },
+        { text: '❌ Descartar', callback_data: `discard:${postId}` },
+      ],
+      [
+        { text: '🔄 Regenerar Copy', callback_data: `regen_copy:${postId}` },
+        { text: '✏️ Editar Copy', callback_data: `edit_copy:${postId}` },
+      ],
     ],
   };
 }
@@ -76,7 +92,52 @@ function buildMediaKey(postId: string): string {
   return `posts/${ym}/${postId}-${randomUUID().slice(0, 8)}.jpg`;
 }
 
+export async function sendCarouselPreviewToTelegram(
+  post: SocialPost,
+  chatId?: string | number
+): Promise<SocialPost> {
+  const telegram = getTelegramClient();
+  const targetChatId = chatId ?? requireEnv('TELEGRAM_CHAT_ID');
+
+  if (post.mediaUrls.length < 2) {
+    throw new Error(`Carousel post ${post.id} requires at least 2 media URLs`);
+  }
+
+  // 1. Send album of slides via sendMediaGroup
+  await telegram.sendMediaGroup(targetChatId, post.mediaUrls);
+
+  // 2. Send approval message with full copy + inline keyboard
+  const pillarLabel = BRAND_KIT.pillars[post.pillar].label;
+  const fullBody = escapeHtml(buildInstagramCaption(post));
+  const header = [
+    `<b>🎠 Propuesta Carrusel FabSoft (${post.mediaUrls.length} slides)</b>`,
+    `<b>Pilar:</b> ${escapeHtml(pillarLabel)} · <b>Modo:</b> <code>${escapeHtml(post.toneMode)}</code>`,
+    `<b>Portada:</b> ${escapeHtml(post.headline)}`,
+    '',
+  ].join('\n');
+
+  const rawMessage = `${header}${fullBody}`;
+  const text =
+    rawMessage.length <= 4090
+      ? rawMessage
+      : `${rawMessage.slice(0, 4085)}…`;
+
+  const sent = await telegram.sendMessage({
+    chatId: targetChatId,
+    text,
+    parseMode: 'HTML',
+    replyMarkup: buildCarouselApprovalKeyboard(post.id),
+  });
+
+  const updated = await setTelegramMessageId(post.id, sent.message_id);
+  return updated ?? post;
+}
+
 export async function sendPostPreviewToTelegram(post: SocialPost): Promise<SocialPost> {
+  if (post.mediaUrls.length > 1) {
+    return sendCarouselPreviewToTelegram(post);
+  }
+
   const telegram = getTelegramClient();
   const chatId = requireEnv('TELEGRAM_CHAT_ID');
   const imageUrl = post.mediaUrls[0];
@@ -106,6 +167,56 @@ export async function sendPostPreviewToTelegram(post: SocialPost): Promise<Socia
 
   const updated = await setTelegramMessageId(post.id, sent.message_id);
   return updated ?? post;
+}
+
+export async function generateAndSendCarousel(
+  topic: string | null,
+  chatId?: string | number
+): Promise<SocialPost> {
+  const ai = getAIProvider();
+  const storage = getMediaStorage();
+
+  // 1. Fetch recent topics for anti-repetition
+  const recentTopics = await getRecentTopics(15);
+
+  // 2. Carousel Agent (5 slides: cover + 3 numbered + closing)
+  const carousel = await runCarouselAgent(ai, {
+    topic,
+    recentTopics,
+  });
+
+  // 3. Compose 5 strict 1080x1350 sRGB JPEGs
+  const slideBuffers = await composeCarouselSlides(carousel);
+
+  // 4. Upload all slides to Cloudflare R2
+  const batchId = randomUUID();
+  const uploadedUrls = await Promise.all(
+    slideBuffers.map((buf, index) =>
+      storage.uploadJpeg(`posts/carousel-${batchId}-slide-${index + 1}.jpg`, buf)
+    )
+  );
+
+  // 5. Persist in PostgreSQL (media_urls JSONB array of 5 URLs)
+  const post = await createPost({
+    platform: 'instagram',
+    pillar: carousel.pillar,
+    audience: carousel.audience,
+    toneMode: carousel.toneMode,
+    template: 'editorial_light',
+    topic: carousel.topic,
+    headline: carousel.coverHeadline,
+    subheadline: carousel.coverSubtitle,
+    highlightPhrase: carousel.coverHighlight,
+    caption: carousel.caption,
+    hashtags: carousel.hashtags,
+    visualConcept: `Carrusel editorial ${slideBuffers.length} slides (30X × FabSoft)`,
+    imagePrompt: null,
+    mediaUrls: uploadedUrls,
+    status: 'pending_approval',
+  });
+
+  // 6. Send album + approval buttons to Telegram
+  return sendCarouselPreviewToTelegram(post, chatId);
 }
 
 export async function generateAndSendPost(topic: string | null): Promise<SocialPost> {
@@ -183,6 +294,41 @@ export async function regeneratePostCopy(postId: string): Promise<SocialPost> {
   const ai = getAIProvider();
   const storage = getMediaStorage();
   const recentTopics = await getRecentTopics(15);
+
+  if (existing.mediaUrls.length > 1) {
+    const carousel = await runCarouselAgent(ai, {
+      topic: existing.topic,
+      recentTopics,
+      feedback: `La portada anterior era "${existing.headline}". Mantén el pilar "${existing.pillar}", pero propón un enfoque, slides y copy mucho más potentes y guardables.`,
+    });
+
+    const slideBuffers = await composeCarouselSlides(carousel);
+    const batchId = randomUUID();
+    const uploadedUrls = await Promise.all(
+      slideBuffers.map((buf, index) =>
+        storage.uploadJpeg(`posts/carousel-${batchId}-slide-${index + 1}.jpg`, buf)
+      )
+    );
+
+    await updatePostCopy(existing.id, {
+      headline: carousel.coverHeadline,
+      subheadline: carousel.coverSubtitle,
+      highlightPhrase: carousel.coverHighlight,
+      caption: carousel.caption,
+      hashtags: carousel.hashtags,
+      visualConcept: `Carrusel editorial ${slideBuffers.length} slides (30X × FabSoft)`,
+    });
+
+    const updated = await updatePostMedia(existing.id, {
+      mediaUrls: uploadedUrls,
+    });
+
+    if (!updated) {
+      throw new Error(`Failed to update carousel post ${existing.id}`);
+    }
+
+    return sendCarouselPreviewToTelegram(updated);
+  }
 
   const copy = await runCopywriterAgent(ai, {
     topic: existing.topic,

@@ -66,37 +66,13 @@ export class InstagramPublisher implements SocialPublisher {
     return data;
   }
 
-  async publishSingleImage(
-    imageUrl: string,
-    caption: string
-  ): Promise<PublishResult> {
-    // Step 1: Create media container
-    const createParams = new URLSearchParams({
-      image_url: imageUrl,
-      caption,
-      access_token: this.accessToken,
-    });
-
-    const container = await this.requestJson<CreateContainerResponse>(
-      `${this.baseUrl}/${this.accountId}/media`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: createParams.toString(),
-      }
-    );
-
-    if (!container.id) {
-      throw new Error('Meta Graph API did not return a container ID');
-    }
-
-    // Step 2: Poll container status until FINISHED (backoff up to ~60s)
+  private async waitForContainerFinished(containerId: string): Promise<void> {
     const maxAttempts = 12;
     let delayMs = 2000;
     let isReady = false;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const statusUrl = new URL(`${this.baseUrl}/${container.id}`);
+      const statusUrl = new URL(`${this.baseUrl}/${containerId}`);
       statusUrl.searchParams.set('fields', 'status_code,status');
       statusUrl.searchParams.set('access_token', this.accessToken);
 
@@ -123,13 +99,16 @@ export class InstagramPublisher implements SocialPublisher {
 
     if (!isReady) {
       throw new Error(
-        `Timed out waiting for Instagram media container ${container.id} to reach FINISHED`
+        `Timed out waiting for Instagram media container ${containerId} to reach FINISHED`
       );
     }
+  }
 
-    // Step 3: Publish container
+  private async publishContainerAndFetchPermalink(
+    creationId: string
+  ): Promise<PublishResult> {
     const publishParams = new URLSearchParams({
-      creation_id: container.id,
+      creation_id: creationId,
       access_token: this.accessToken,
     });
 
@@ -146,7 +125,7 @@ export class InstagramPublisher implements SocialPublisher {
       throw new Error('Meta Graph API did not return a published media ID');
     }
 
-    // Step 4: Fetch permalink (best-effort)
+    // Best-effort permalink lookup
     let permalink: string | null = null;
     try {
       const permalinkUrl = new URL(`${this.baseUrl}/${published.id}`);
@@ -164,6 +143,101 @@ export class InstagramPublisher implements SocialPublisher {
       externalPostId: published.id,
       externalPostUrl: permalink,
     };
+  }
+
+  async publishSingleImage(
+    imageUrl: string,
+    caption: string
+  ): Promise<PublishResult> {
+    // Step 1: Create media container
+    const createParams = new URLSearchParams({
+      image_url: imageUrl,
+      caption,
+      access_token: this.accessToken,
+    });
+
+    const container = await this.requestJson<CreateContainerResponse>(
+      `${this.baseUrl}/${this.accountId}/media`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: createParams.toString(),
+      }
+    );
+
+    if (!container.id) {
+      throw new Error('Meta Graph API did not return a container ID');
+    }
+
+    // Step 2: Poll container status until FINISHED (backoff up to ~60s)
+    await this.waitForContainerFinished(container.id);
+
+    // Step 3 & 4: Publish container & fetch permalink
+    return this.publishContainerAndFetchPermalink(container.id);
+  }
+
+  async publishCarousel(
+    imageUrls: string[],
+    caption: string
+  ): Promise<PublishResult> {
+    if (imageUrls.length < 2 || imageUrls.length > 10) {
+      throw new Error(
+        `Instagram carousel requires between 2 and 10 images (received ${imageUrls.length})`
+      );
+    }
+
+    // Step 1 & 2: Create each child item container and wait until FINISHED
+    const childIds: string[] = [];
+    for (const imageUrl of imageUrls) {
+      const childParams = new URLSearchParams({
+        image_url: imageUrl,
+        is_carousel_item: 'true',
+        access_token: this.accessToken,
+      });
+
+      const childContainer = await this.requestJson<CreateContainerResponse>(
+        `${this.baseUrl}/${this.accountId}/media`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: childParams.toString(),
+        }
+      );
+
+      if (!childContainer.id) {
+        throw new Error('Meta Graph API did not return a carousel child container ID');
+      }
+
+      await this.waitForContainerFinished(childContainer.id);
+      childIds.push(childContainer.id);
+    }
+
+    // Step 3: Create parent CAROUSEL container
+    const parentParams = new URLSearchParams({
+      media_type: 'CAROUSEL',
+      children: childIds.join(','),
+      caption,
+      access_token: this.accessToken,
+    });
+
+    const parentContainer = await this.requestJson<CreateContainerResponse>(
+      `${this.baseUrl}/${this.accountId}/media`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: parentParams.toString(),
+      }
+    );
+
+    if (!parentContainer.id) {
+      throw new Error('Meta Graph API did not return a carousel parent container ID');
+    }
+
+    // Step 4: Poll parent container until FINISHED
+    await this.waitForContainerFinished(parentContainer.id);
+
+    // Step 5: Publish parent container & fetch permalink
+    return this.publishContainerAndFetchPermalink(parentContainer.id);
   }
 
   async checkConnection(): Promise<{ ok: boolean; username?: string }> {

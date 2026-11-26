@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   artDirectorOutputSchema,
+  carouselOutputSchema,
   copywriterOutputSchema,
   recordingIdeaOutputSchema,
   trendsOutputSchema,
@@ -262,6 +263,104 @@ describe('recordingIdeaOutputSchema', () => {
           'Paso 5 concreto',
           'Paso 6 extra',
         ],
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('carouselOutputSchema', () => {
+  const validCarouselPayload = {
+    topic: '3 fricciones que frenan las ventas en la web de tu negocio',
+    pillar: 'productos' as const,
+    audience: 'b2b' as const,
+    toneMode: 'empresarial' as const,
+    coverHeadline: 'Tu web podría estar perdiendo clientes desde el celular',
+    coverHighlight: 'perdiendo clientes',
+    coverSubtitle: '3 ajustes técnicos concretos para convertir visitas en mensajes de WhatsApp.',
+    slides: [
+      {
+        number: '01' as const,
+        highlight: 'Menús PDF eternos',
+        heading: 'Nadie hace zoom en un PDF de 8 MB desde datos móviles',
+        body: 'Un catálogo web ligero carga en menos de 2 segundos y permite pedir sin fricción desde cualquier celular.',
+      },
+      {
+        number: '02' as const,
+        highlight: 'Velocidad real',
+        heading: 'Cada segundo extra de carga reduce tu tasa de contacto',
+        body: 'Optimizar imágenes, caché y Core Web Vitals hace que el cliente llegue al botón de acción antes de cerrar la pestaña.',
+      },
+      {
+        number: '03' as const,
+        highlight: 'Flujo directo a WhatsApp',
+        heading: 'Elimina formularios largos cuando el cliente ya quiere preguntar',
+        body: 'Un botón claro con mensaje prellenado acelera la conversación y multiplica las consultas reales.',
+      },
+    ],
+    closingHeadline: 'Un gran negocio merece una web a su altura',
+    closingBody:
+      'En FabSoft diseñamos y construimos plataformas rápidas desde Popayán y Garzón, con entregas reales cada semana.',
+    closingCta: '¿Qué negocio local te gustaría que auditemos? Coméntalo o escríbenos al DM.',
+    caption:
+      'Muchos negocios locales tienen un producto increíble, pero su web se quedó atrás en experiencia móvil. Desliza para ver 3 puntos clave que revisamos en cada auditoría.',
+    hashtags: [
+      'FabSoft',
+      '#Popayán',
+      'Desarrollo Web',
+      '#UIUXDesign',
+      '#EmprendedoresColombia',
+    ],
+  };
+
+  it('accepts a valid 5-slide carousel payload and normalizes hashtags', () => {
+    const parsed = carouselOutputSchema.parse(validCarouselPayload);
+
+    expect(parsed.slides).toHaveLength(3);
+    expect(parsed.coverHighlight).toBe('perdiendo clientes');
+    expect(parsed.hashtags).toEqual([
+      '#FabSoft',
+      '#Popayán',
+      '#DesarrolloWeb',
+      '#UIUXDesign',
+      '#EmprendedoresColombia',
+    ]);
+  });
+
+  it('defaults coverHighlight to null when omitted', () => {
+    const { coverHighlight: _ignored, ...withoutHighlight } = validCarouselPayload;
+    const parsed = carouselOutputSchema.parse(withoutHighlight);
+    expect(parsed.coverHighlight).toBeNull();
+  });
+
+  it('rejects fewer than 3 slides, invalid slide numbers, or hashtag count outside 5-8', () => {
+    expect(
+      carouselOutputSchema.safeParse({
+        ...validCarouselPayload,
+        slides: validCarouselPayload.slides.slice(0, 2),
+      }).success
+    ).toBe(false);
+
+    expect(
+      carouselOutputSchema.safeParse({
+        ...validCarouselPayload,
+        slides: [
+          ...validCarouselPayload.slides.slice(0, 2),
+          { ...validCarouselPayload.slides[2], number: '99' },
+        ],
+      }).success
+    ).toBe(false);
+
+    expect(
+      carouselOutputSchema.safeParse({
+        ...validCarouselPayload,
+        hashtags: ['#Uno', '#Dos', '#Tres', '#Cuatro'],
+      }).success
+    ).toBe(false);
+
+    expect(
+      carouselOutputSchema.safeParse({
+        ...validCarouselPayload,
+        hashtags: Array.from({ length: 9 }, (_, i) => `#Tag${i}`),
       }).success
     ).toBe(false);
   });

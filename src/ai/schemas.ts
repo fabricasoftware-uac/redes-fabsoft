@@ -93,3 +93,40 @@ export const recordingIdeaOutputSchema = z.object({
 });
 
 export type RecordingIdeaOutput = z.infer<typeof recordingIdeaOutputSchema>;
+
+export const carouselSlideSchema = z.object({
+  number: z.enum(['01', '02', '03', '04']),
+  highlight: trimmedMax(4, 70),
+  heading: trimmedMax(5, 110),
+  body: trimmedMax(10, 220),
+});
+
+export type CarouselSlide = z.infer<typeof carouselSlideSchema>;
+
+export const carouselOutputSchema = z.object({
+  topic: trimmedMax(3, 200),
+  pillar: pillarSchema,
+  audience: audienceSchema,
+  toneMode: toneModeSchema,
+  coverHeadline: trimmedMax(5, 100),
+  coverHighlight: trimmedMax(3, 50).nullable().default(null),
+  coverSubtitle: trimmedMax(5, 140),
+  slides: z.array(carouselSlideSchema).min(3).max(4),
+  closingHeadline: trimmedMax(5, 100),
+  closingBody: trimmedMax(10, 180),
+  closingCta: trimmedMax(5, 120),
+  caption: trimmedMax(20, 2100),
+  hashtags: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(2)
+        .max(40)
+        .transform((tag) => (tag.startsWith('#') ? tag : `#${tag.replace(/\s+/g, '')}`))
+    )
+    .min(5)
+    .max(8),
+});
+
+export type CarouselOutput = z.infer<typeof carouselOutputSchema>;

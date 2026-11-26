@@ -6,4 +6,5 @@ export interface PublishResult {
 export interface SocialPublisher {
   readonly platform: string;
   publishSingleImage(imageUrl: string, caption: string): Promise<PublishResult>;
+  publishCarousel(imageUrls: string[], caption: string): Promise<PublishResult>;
 }

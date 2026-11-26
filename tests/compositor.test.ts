@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
+  composeCarouselSlides,
   composePostImage,
 } from '../src/media/compositor.js';
 
@@ -107,4 +108,70 @@ describe('composePostImage (Satori + Resvg + Sharp)', () => {
 
     await assertValidInstagramJpeg(bufferWithBg);
   }, 15_000);
+});
+
+describe('composeCarouselSlides (5-slide 30X x FabSoft)', () => {
+  const sampleCarousel = {
+    topic: '3 errores de rendimiento web en negocios locales',
+    pillar: 'educacion' as const,
+    audience: 'b2b' as const,
+    toneMode: 'educativo' as const,
+    coverHeadline: '3 detalles que hacen lenta tu web en celular',
+    coverHighlight: 'lenta tu web',
+    coverSubtitle: 'Guía rápida Mobile First para convertir visitas en mensajes reales.',
+    slides: [
+      {
+        number: '01' as const,
+        highlight: 'Imágenes sin comprimir',
+        heading: 'Subir fotos de 6 MB directo desde la cámara frena todo',
+        body: 'Convierte tus recursos a WebP o JPEG optimizado y ajusta el tamaño real al contenedor móvil.',
+      },
+      {
+        number: '02' as const,
+        highlight: 'Menús en PDF pesado',
+        heading: 'Obligar a descargar un archivo rompe la experiencia táctil',
+        body: 'Una vista web responsiva carga al instante y permite buscar o escribir a WhatsApp en un toque.',
+      },
+      {
+        number: '03' as const,
+        highlight: 'Sin botón directo',
+        heading: 'Si el cliente busca tu contacto por 20 segundos, se va',
+        body: 'Ubica un llamado a la acción claro en el primer pantallazo con mensaje prellenado.',
+      },
+    ],
+    closingHeadline: 'Pequeños ajustes técnicos, gran impacto en ventas',
+    closingBody:
+      'Construimos interfaces rápidas y código propio cada semana desde Popayán y Garzón.',
+    closingCta: 'Guarda este carrusel o envíanos tu web por DM para revisarla juntos.',
+    caption:
+      'La mayoría de tus clientes te visitan desde el celular con datos móviles. Revisa estos 3 puntos hoy mismo.',
+    hashtags: [
+      '#FabSoft',
+      '#Popayán',
+      '#DesarrolloWeb',
+      '#UIUXDesign',
+      '#EmprendedoresColombia',
+    ],
+  };
+
+  it('renders 5 valid 1080x1350 sRGB JPEGs in educativo (light cover) mode', async () => {
+    const buffers = await composeCarouselSlides(sampleCarousel);
+    expect(buffers).toHaveLength(5);
+
+    for (const buf of buffers) {
+      await assertValidInstagramJpeg(buf);
+    }
+  }, 25_000);
+
+  it('renders 5 valid 1080x1350 sRGB JPEGs in empresarial (dark cover) mode', async () => {
+    const buffers = await composeCarouselSlides({
+      ...sampleCarousel,
+      toneMode: 'empresarial',
+    });
+    expect(buffers).toHaveLength(5);
+
+    for (const buf of buffers) {
+      await assertValidInstagramJpeg(buf);
+    }
+  }, 25_000);
 });

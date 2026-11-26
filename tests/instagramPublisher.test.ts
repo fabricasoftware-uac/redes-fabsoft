@@ -163,4 +163,97 @@ describe('InstagramPublisher (Meta Graph API)', () => {
       externalPostUrl: null,
     });
   });
+
+  it('publishes a multi-slide carousel (child items -> poll -> parent CAROUSEL -> poll -> media_publish -> permalink)', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      // Child 1 create + poll (IN_PROGRESS -> FINISHED)
+      .mockResolvedValueOnce(jsonResponse({ id: 'child_1' }))
+      .mockResolvedValueOnce(jsonResponse({ status_code: 'IN_PROGRESS' }))
+      .mockResolvedValueOnce(jsonResponse({ status_code: 'FINISHED' }))
+      // Child 2 create + poll (FINISHED)
+      .mockResolvedValueOnce(jsonResponse({ id: 'child_2' }))
+      .mockResolvedValueOnce(jsonResponse({ status_code: 'FINISHED' }))
+      // Child 3 create + poll (FINISHED)
+      .mockResolvedValueOnce(jsonResponse({ id: 'child_3' }))
+      .mockResolvedValueOnce(jsonResponse({ status_code: 'FINISHED' }))
+      // Parent CAROUSEL create + poll (FINISHED)
+      .mockResolvedValueOnce(jsonResponse({ id: 'parent_carousel_1' }))
+      .mockResolvedValueOnce(jsonResponse({ status_code: 'FINISHED' }))
+      // Publish parent
+      .mockResolvedValueOnce(jsonResponse({ id: 'ig_carousel_555' }))
+      // Permalink
+      .mockResolvedValueOnce(
+        jsonResponse({ permalink: 'https://www.instagram.com/p/FabSoftCarousel/' })
+      );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const publisher = new InstagramPublisher({
+      accessToken: 'test-token',
+      accountId: '17841400000000000',
+      apiVersion: 'v22.0',
+    });
+
+    const publishPromise = publisher.publishCarousel(
+      [
+        'https://cdn.fabsoft.tech/posts/carousel-slide-1.jpg',
+        'https://cdn.fabsoft.tech/posts/carousel-slide-2.jpg',
+        'https://cdn.fabsoft.tech/posts/carousel-slide-3.jpg',
+      ],
+      'Caption carrusel #FabSoft'
+    );
+
+    await vi.advanceTimersByTimeAsync(2500);
+
+    const result = await publishPromise;
+
+    expect(result).toEqual({
+      externalPostId: 'ig_carousel_555',
+      externalPostUrl: 'https://www.instagram.com/p/FabSoftCarousel/',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(11);
+
+    // Verify Child 1 request includes is_carousel_item=true
+    const [child1Url, child1Init] = fetchMock.mock.calls[0]!;
+    expect(String(child1Url)).toBe(
+      'https://graph.facebook.com/v22.0/17841400000000000/media'
+    );
+    expect(child1Init?.method).toBe('POST');
+    expect(String(child1Init?.body)).toContain('is_carousel_item=true');
+
+    // Verify Parent CAROUSEL container request
+    const [parentUrl, parentInit] = fetchMock.mock.calls[7]!;
+    expect(String(parentUrl)).toBe(
+      'https://graph.facebook.com/v22.0/17841400000000000/media'
+    );
+    expect(parentInit?.method).toBe('POST');
+    const parentBody = new URLSearchParams(String(parentInit?.body));
+    expect(parentBody.get('media_type')).toBe('CAROUSEL');
+    expect(parentBody.get('children')).toBe('child_1,child_2,child_3');
+    expect(parentBody.get('caption')).toBe('Caption carrusel #FabSoft');
+
+    // Verify media_publish uses parent container ID
+    const [publishUrl, publishInit] = fetchMock.mock.calls[9]!;
+    expect(String(publishUrl)).toBe(
+      'https://graph.facebook.com/v22.0/17841400000000000/media_publish'
+    );
+    expect(String(publishInit?.body)).toContain('creation_id=parent_carousel_1');
+  });
+
+  it('rejects carousel publish when fewer than 2 images are provided', async () => {
+    const publisher = new InstagramPublisher({
+      accessToken: 'test-token',
+      accountId: '17841400000000000',
+      apiVersion: 'v22.0',
+    });
+
+    await expect(
+      publisher.publishCarousel(
+        ['https://cdn.fabsoft.tech/posts/only-one.jpg'],
+        'Caption'
+      )
+    ).rejects.toThrow(/requires between 2 and 10 images/);
+  });
 });

@@ -22,7 +22,9 @@ import {
 } from '../db/postsRepository.js';
 import {
   buildApprovalKeyboard,
+  buildCarouselApprovalKeyboard,
   buildInstagramCaption,
+  generateAndSendCarousel,
   generateAndSendPost,
   regeneratePostCopy,
   regeneratePostImage,
@@ -103,6 +105,7 @@ async function handleCommand(
       '',
       '• <code>/idea &lt;tema&gt;</code> — Genera una propuesta completa sobre un tema específico.',
       '• <code>/idea</code> — Genera una propuesta autónoma (anti-repetición).',
+      '• <code>/carrusel [tema]</code> — Genera un carrusel editorial de 5 slides (Portada + 3 puntos + Cierre).',
       '• <code>/tendencias [enfoque]</code> — Sugiere 4 ideas frescas en tendencia con botones para generar.',
       '• <code>/grabar [oficina|virtual]</code> — Recomienda un guion corto (30–45s) para grabar Reel/Video.',
       '• <code>/status</code> — Muestra el resumen de publicaciones y estado del sistema.',
@@ -193,6 +196,25 @@ async function handleCommand(
     } catch (err) {
       console.error('[telegram] /idea failed:', err);
       await notifyError(chatId, '/idea', err);
+    }
+    return;
+  }
+
+  if (command === 'carrusel') {
+    const topic = arg.length > 0 ? arg : null;
+    await telegram.sendMessage({
+      chatId,
+      text: topic
+        ? `🎠 Generando carrusel de 5 slides sobre: <b>${escapeHtml(topic)}</b>…`
+        : '🎠 Generando carrusel editorial autónomo de 5 slides para FabSoft…',
+      parseMode: 'HTML',
+    });
+
+    try {
+      await generateAndSendCarousel(topic, chatId);
+    } catch (err) {
+      console.error('[telegram] /carrusel failed:', err);
+      await notifyError(chatId, '/carrusel', err);
     }
     return;
   }
@@ -374,11 +396,15 @@ async function handleCallbackQuery(
         'Pendiente credenciales de Instagram (Fase 4)'
       );
       if (messageId !== undefined) {
+        const restoredKeyboard =
+          claimed.mediaUrls.length > 1
+            ? buildCarouselApprovalKeyboard(postId)
+            : buildApprovalKeyboard(postId);
         await telegram
           .editMessageReplyMarkup({
             chatId,
             messageId,
-            replyMarkup: buildApprovalKeyboard(postId),
+            replyMarkup: restoredKeyboard,
           })
           .catch(() => {});
       }
@@ -404,7 +430,10 @@ async function handleCallbackQuery(
     try {
       const publisher = new InstagramPublisher();
       const fullCaption = buildInstagramCaption(claimed);
-      const result = await publisher.publishSingleImage(imageUrl, fullCaption);
+      const result =
+        claimed.mediaUrls.length > 1
+          ? await publisher.publishCarousel(claimed.mediaUrls, fullCaption)
+          : await publisher.publishSingleImage(imageUrl, fullCaption);
 
       await markPostPublished(postId, result.externalPostId, result.externalPostUrl);
 

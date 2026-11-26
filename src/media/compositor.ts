@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { Resvg } from '@resvg/resvg-js';
 import satori, { type Font } from 'satori';
 import sharp from 'sharp';
+import type { CarouselOutput, CarouselSlide } from '../ai/schemas.js';
 import { BRAND_KIT, type PillarKey, type TemplateKey } from '../config/brandKit.js';
 
 const require = createRequire(import.meta.url);
@@ -988,6 +989,29 @@ async function renderSatoriToPng(tree: SatoriNode, fonts: Font[]): Promise<Buffe
   return Buffer.from(resvg.render().asPng());
 }
 
+async function exportInstagramJpeg(
+  compositeBuffer: Buffer,
+  flattenBackground = '#040B1A'
+): Promise<Buffer> {
+  let jpegBuffer = await sharp(compositeBuffer)
+    .resize(CANVAS_WIDTH, CANVAS_HEIGHT, { fit: 'cover' })
+    .flatten({ background: flattenBackground })
+    .toColorspace('srgb')
+    .jpeg({ quality: 90, mozjpeg: true })
+    .toBuffer();
+
+  if (jpegBuffer.byteLength >= MAX_INSTAGRAM_BYTES) {
+    jpegBuffer = await sharp(compositeBuffer)
+      .resize(CANVAS_WIDTH, CANVAS_HEIGHT, { fit: 'cover' })
+      .flatten({ background: flattenBackground })
+      .toColorspace('srgb')
+      .jpeg({ quality: 80, mozjpeg: true })
+      .toBuffer();
+  }
+
+  return jpegBuffer;
+}
+
 /**
  * 2-Layer Compositor -> Strict Instagram-ready JPEG sRGB 1080x1350 (4:5), quality 90, < 8 MB.
  */
@@ -1036,22 +1060,579 @@ export async function composePostImage(
     compositeBuffer = await renderSatoriToPng(tree, fonts);
   }
 
-  // Final strict Instagram export: 1080x1350 sRGB JPEG quality 90 (< 8 MB)
-  let jpegBuffer = await sharp(compositeBuffer)
-    .resize(CANVAS_WIDTH, CANVAS_HEIGHT, { fit: 'cover' })
-    .flatten({ background: '#040B1A' })
-    .toColorspace('srgb')
-    .jpeg({ quality: 90, mozjpeg: true })
-    .toBuffer();
+  return exportInstagramJpeg(compositeBuffer);
+}
 
-  if (jpegBuffer.byteLength >= MAX_INSTAGRAM_BYTES) {
-    jpegBuffer = await sharp(compositeBuffer)
-      .resize(CANVAS_WIDTH, CANVAS_HEIGHT, { fit: 'cover' })
-      .flatten({ background: '#040B1A' })
-      .toColorspace('srgb')
-      .jpeg({ quality: 80, mozjpeg: true })
-      .toBuffer();
+function buildCarouselCoverTree(
+  input: CarouselOutput,
+  logos: { color: string; azul: string }
+): SatoriNode {
+  const { palette } = BRAND_KIT;
+  const isDark = input.toneMode === 'empresarial';
+  const pillarInfo = BRAND_KIT.pillars[input.pillar];
+  const headlineSize =
+    input.coverHeadline.length > 56
+      ? 62
+      : input.coverHeadline.length > 38
+        ? 72
+        : 82;
+
+  const { before, highlight, after } = splitByHighlight(
+    input.coverHeadline,
+    input.coverHighlight
+  );
+
+  const primaryTextColor = isDark ? palette.stellarWhite : palette.deepSpaceBlue;
+  const secondaryTextColor = isDark ? '#CBD5E1' : palette.darkSlate;
+  const borderColor = isDark ? 'rgba(245, 247, 250, 0.14)' : '#E2E8F0';
+  const highlightBg = isDark ? palette.propulsionBlue : palette.softCyanHighlight;
+  const highlightTextColor = isDark ? palette.pureWhite : palette.propulsionBlue;
+  const swipeColor = isDark ? palette.softCyanHighlight : palette.propulsionBlue;
+
+  const headlineChildren: SatoriNode[] = [];
+  if (highlight) {
+    if (before.trim().length > 0) {
+      headlineChildren.push(
+        el('span', { display: 'flex', color: primaryTextColor }, before)
+      );
+    }
+    headlineChildren.push(
+      el(
+        'span',
+        {
+          display: 'flex',
+          backgroundColor: highlightBg,
+          color: highlightTextColor,
+          padding: '2px 18px 6px 18px',
+          borderRadius: 16,
+        },
+        highlight
+      )
+    );
+    if (after.trim().length > 0) {
+      headlineChildren.push(
+        el('span', { display: 'flex', color: primaryTextColor }, after)
+      );
+    }
   }
 
-  return jpegBuffer;
+  const rootBackground = isDark
+    ? {
+        backgroundColor: palette.deepSpaceBlue,
+        backgroundImage:
+          'radial-gradient(circle at 86% 18%, rgba(0,82,255,0.42) 0%, rgba(18,130,255,0.14) 34%, rgba(4,11,26,0) 64%), radial-gradient(circle at 14% 88%, rgba(18,130,255,0.16) 0%, rgba(4,11,26,0) 48%)',
+      }
+    : {
+        backgroundColor: palette.stellarWhite,
+      };
+
+  return el(
+    'div',
+    {
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      width: CANVAS_WIDTH,
+      height: CANVAS_HEIGHT,
+      padding: '76px 76px 72px 76px',
+      fontFamily: 'Space Grotesk',
+      ...rootBackground,
+    },
+    [
+      // Top bar: Official FabSoft logo + Pillar editorial tag
+      el(
+        'div',
+        {
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          width: '100%',
+          paddingBottom: 24,
+          borderBottom: `2px solid ${borderColor}`,
+        },
+        [
+          imgEl(isDark ? logos.color : logos.azul, 200, 50, {
+            objectFit: 'contain',
+          }),
+          el(
+            'div',
+            {
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+            },
+            [
+              el('div', {
+                display: 'flex',
+                width: 9,
+                height: 9,
+                borderRadius: 999,
+                backgroundColor: isDark ? palette.orbitCyan : palette.propulsionBlue,
+              }),
+              el(
+                'div',
+                {
+                  display: 'flex',
+                  color: secondaryTextColor,
+                  fontFamily: 'Inter',
+                  fontSize: 19,
+                  fontWeight: 600,
+                  letterSpacing: '0.14em',
+                },
+                `${pillarInfo.code} / ${pillarInfo.label.toUpperCase()}`
+              ),
+            ]
+          ),
+        ]
+      ),
+
+      // Main cover headline + subtitle
+      el(
+        'div',
+        {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 34,
+          maxWidth: 920,
+        },
+        [
+          el('div', {
+            display: 'flex',
+            width: 96,
+            height: 6,
+            borderRadius: 999,
+            backgroundImage: `linear-gradient(90deg, ${palette.propulsionBlue}, ${palette.orbitCyan})`,
+          }),
+          highlight
+            ? el(
+                'div',
+                {
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  columnGap: 14,
+                  rowGap: 12,
+                  fontFamily: 'Space Grotesk',
+                  fontSize: headlineSize,
+                  fontWeight: 700,
+                  lineHeight: 1.12,
+                  letterSpacing: '-0.025em',
+                },
+                headlineChildren
+              )
+            : el(
+                'div',
+                {
+                  display: 'flex',
+                  color: primaryTextColor,
+                  fontFamily: 'Space Grotesk',
+                  fontSize: headlineSize,
+                  fontWeight: 700,
+                  lineHeight: 1.1,
+                  letterSpacing: '-0.025em',
+                },
+                input.coverHeadline
+              ),
+          el(
+            'div',
+            {
+              display: 'flex',
+              color: secondaryTextColor,
+              fontFamily: 'Inter',
+              fontSize: 33,
+              fontWeight: 400,
+              lineHeight: 1.44,
+              maxWidth: 820,
+            },
+            input.coverSubtitle
+          ),
+        ]
+      ),
+
+      // Footer: @fabsoft._ left + DESLIZA -> right
+      el(
+        'div',
+        {
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          width: '100%',
+          paddingTop: 28,
+          borderTop: `2px solid ${borderColor}`,
+        },
+        [
+          el(
+            'div',
+            {
+              display: 'flex',
+              color: primaryTextColor,
+              fontFamily: 'Inter',
+              fontSize: 23,
+              fontWeight: 600,
+            },
+            BRAND_KIT.handle
+          ),
+          el(
+            'div',
+            {
+              display: 'flex',
+              alignItems: 'center',
+              padding: '12px 24px',
+              borderRadius: 999,
+              backgroundColor: isDark
+                ? 'rgba(0, 82, 255, 0.28)'
+                : palette.softCyanHighlight,
+              color: swipeColor,
+              fontFamily: 'Space Grotesk',
+              fontSize: 22,
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+            },
+            'DESLIZA →'
+          ),
+        ]
+      ),
+    ]
+  );
+}
+
+function buildCarouselNumberedSlideTree(
+  slide: CarouselSlide,
+  logoAzulUri: string
+): SatoriNode {
+  const { palette } = BRAND_KIT;
+  const displayNumber = String(Number(slide.number));
+  const headingSize = slide.heading.length > 72 ? 48 : slide.heading.length > 48 ? 54 : 60;
+
+  return el(
+    'div',
+    {
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      width: CANVAS_WIDTH,
+      height: CANVAS_HEIGHT,
+      backgroundColor: palette.stellarWhite,
+      padding: '84px 80px 72px 80px',
+      fontFamily: 'Space Grotesk',
+    },
+    [
+      // Top centered numbered circle (30X editorial style)
+      el(
+        'div',
+        {
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          width: '100%',
+        },
+        el(
+          'div',
+          {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 92,
+            height: 92,
+            borderRadius: 999,
+            backgroundColor: palette.pureWhite,
+            border: `3px solid ${palette.deepSpaceBlue}`,
+            color: palette.deepSpaceBlue,
+            fontFamily: 'Space Grotesk',
+            fontSize: 42,
+            fontWeight: 700,
+          },
+          displayNumber
+        )
+      ),
+
+      // Central editorial block: soft cyan highlight marker + bold heading + clean body
+      el(
+        'div',
+        {
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          gap: 32,
+          width: '100%',
+          padding: '0 16px',
+        },
+        [
+          el(
+            'div',
+            {
+              display: 'flex',
+              justifyContent: 'center',
+              backgroundColor: palette.softCyanHighlight,
+              color: palette.propulsionBlue,
+              padding: '12px 28px',
+              borderRadius: 18,
+              fontFamily: 'Space Grotesk',
+              fontSize: 34,
+              fontWeight: 700,
+              lineHeight: 1.2,
+              textAlign: 'center',
+            },
+            slide.highlight
+          ),
+          el(
+            'div',
+            {
+              display: 'flex',
+              justifyContent: 'center',
+              color: palette.deepSpaceBlue,
+              fontFamily: 'Space Grotesk',
+              fontSize: headingSize,
+              fontWeight: 700,
+              lineHeight: 1.14,
+              letterSpacing: '-0.025em',
+              textAlign: 'center',
+              maxWidth: 880,
+            },
+            slide.heading
+          ),
+          el(
+            'div',
+            {
+              display: 'flex',
+              justifyContent: 'center',
+              color: palette.darkSlate,
+              fontFamily: 'Inter',
+              fontSize: 33,
+              fontWeight: 400,
+              lineHeight: 1.48,
+              textAlign: 'center',
+              maxWidth: 820,
+            },
+            slide.body
+          ),
+        ]
+      ),
+
+      // Footer: Blue FabSoft logo bottom-left, @fabsoft._ bottom-right
+      el(
+        'div',
+        {
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          width: '100%',
+          paddingTop: 30,
+          borderTop: '2px solid #E2E8F0',
+        },
+        [
+          imgEl(logoAzulUri, 190, 48, { objectFit: 'contain' }),
+          el(
+            'div',
+            {
+              display: 'flex',
+              color: palette.deepSpaceBlue,
+              fontFamily: 'Inter',
+              fontSize: 23,
+              fontWeight: 600,
+            },
+            BRAND_KIT.handle
+          ),
+        ]
+      ),
+    ]
+  );
+}
+
+function buildCarouselClosingTree(
+  input: CarouselOutput,
+  logoColorUri: string,
+  totalSlides: number
+): SatoriNode {
+  const { palette } = BRAND_KIT;
+  const headlineSize = input.closingHeadline.length > 56 ? 58 : 68;
+  const slideCounter = `${String(totalSlides).padStart(2, '0')} / ${String(totalSlides).padStart(2, '0')}`;
+
+  return el(
+    'div',
+    {
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      width: CANVAS_WIDTH,
+      height: CANVAS_HEIGHT,
+      backgroundColor: palette.deepSpaceBlue,
+      backgroundImage:
+        'radial-gradient(circle at 82% 20%, rgba(0,82,255,0.44) 0%, rgba(18,130,255,0.14) 34%, rgba(4,11,26,0) 64%), radial-gradient(circle at 18% 85%, rgba(18,130,255,0.18) 0%, rgba(4,11,26,0) 50%)',
+      padding: '76px 76px 72px 76px',
+      fontFamily: 'Space Grotesk',
+    },
+    [
+      // Top bar: Official FabSoft logo + closing slide index
+      el(
+        'div',
+        {
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          width: '100%',
+          paddingBottom: 24,
+          borderBottom: '1px solid rgba(245, 247, 250, 0.14)',
+        },
+        [
+          imgEl(logoColorUri, 205, 52, { objectFit: 'contain' }),
+          el(
+            'div',
+            {
+              display: 'flex',
+              color: palette.mutedSlate,
+              fontFamily: 'Inter',
+              fontSize: 20,
+              fontWeight: 600,
+              letterSpacing: '0.16em',
+            },
+            slideCounter
+          ),
+        ]
+      ),
+
+      // Main closing message + Inverse CTA callout
+      el(
+        'div',
+        {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 32,
+          maxWidth: 900,
+        },
+        [
+          el('div', {
+            display: 'flex',
+            width: 84,
+            height: 6,
+            borderRadius: 999,
+            backgroundImage: `linear-gradient(90deg, ${palette.propulsionBlue}, ${palette.orbitCyan})`,
+          }),
+          el(
+            'div',
+            {
+              display: 'flex',
+              color: palette.stellarWhite,
+              fontFamily: 'Space Grotesk',
+              fontSize: headlineSize,
+              fontWeight: 700,
+              lineHeight: 1.1,
+              letterSpacing: '-0.025em',
+            },
+            input.closingHeadline
+          ),
+          el(
+            'div',
+            {
+              display: 'flex',
+              color: '#CBD5E1',
+              fontFamily: 'Inter',
+              fontSize: 32,
+              fontWeight: 400,
+              lineHeight: 1.46,
+              maxWidth: 820,
+            },
+            input.closingBody
+          ),
+          el(
+            'div',
+            {
+              display: 'flex',
+              marginTop: 8,
+              padding: '28px 34px',
+              borderRadius: 22,
+              backgroundColor: 'rgba(0, 82, 255, 0.24)',
+              border: '2px solid rgba(18, 130, 255, 0.72)',
+              color: palette.pureWhite,
+              fontFamily: 'Space Grotesk',
+              fontSize: 30,
+              fontWeight: 600,
+              lineHeight: 1.35,
+            },
+            input.closingCta
+          ),
+        ]
+      ),
+
+      // Footer: fabsoft.app + @fabsoft._
+      el(
+        'div',
+        {
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          width: '100%',
+          paddingTop: 28,
+          borderTop: '1px solid rgba(245, 247, 250, 0.14)',
+        },
+        [
+          el(
+            'div',
+            {
+              display: 'flex',
+              color: palette.stellarWhite,
+              fontFamily: 'Space Grotesk',
+              fontSize: 24,
+              fontWeight: 700,
+            },
+            BRAND_KIT.website
+          ),
+          el(
+            'div',
+            {
+              display: 'flex',
+              color: palette.mutedSlate,
+              fontFamily: 'Inter',
+              fontSize: 22,
+              fontWeight: 500,
+            },
+            BRAND_KIT.handle
+          ),
+        ]
+      ),
+    ]
+  );
+}
+
+/**
+ * Renders a complete multi-slide Instagram carousel (Cover + numbered slides + Closing)
+ * as strict 1080x1350 (4:5) sRGB JPEG buffers (< 8 MB each).
+ */
+export async function composeCarouselSlides(
+  input: CarouselOutput
+): Promise<Buffer[]> {
+  const [fonts, logos] = await Promise.all([loadFonts(), loadLogos()]);
+  const totalSlides = input.slides.length + 2;
+
+  const trees: Array<{ tree: SatoriNode; flattenBg: string }> = [
+    {
+      tree: buildCarouselCoverTree(input, logos),
+      flattenBg:
+        input.toneMode === 'empresarial'
+          ? BRAND_KIT.palette.deepSpaceBlue
+          : BRAND_KIT.palette.stellarWhite,
+    },
+    ...input.slides.map((slide) => ({
+      tree: buildCarouselNumberedSlideTree(slide, logos.azul),
+      flattenBg: BRAND_KIT.palette.stellarWhite,
+    })),
+    {
+      tree: buildCarouselClosingTree(input, logos.color, totalSlides),
+      flattenBg: BRAND_KIT.palette.deepSpaceBlue,
+    },
+  ];
+
+  return Promise.all(
+    trees.map(async ({ tree, flattenBg }) => {
+      const png = await renderSatoriToPng(tree, fonts);
+      return exportInstagramJpeg(png, flattenBg);
+    })
+  );
 }

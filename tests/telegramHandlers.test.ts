@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   answerCallbackQuery: vi.fn(),
   editMessageReplyMarkup: vi.fn(),
   generateAndSendPost: vi.fn(),
+  generateAndSendCarousel: vi.fn(),
   regeneratePostCopy: vi.fn(),
   regeneratePostImage: vi.fn(),
   sendPostPreviewToTelegram: vi.fn(),
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   setAwaitingEdit: vi.fn(),
   updatePostCopy: vi.fn(),
   publishSingleImage: vi.fn(),
+  publishCarousel: vi.fn(),
   isInstagramConfigured: vi.fn(),
 }));
 
@@ -69,10 +71,12 @@ vi.mock('../src/db/postsRepository.js', () => ({
 
 vi.mock('../src/pipeline/generatePost.js', () => ({
   generateAndSendPost: mocks.generateAndSendPost,
+  generateAndSendCarousel: mocks.generateAndSendCarousel,
   regeneratePostCopy: mocks.regeneratePostCopy,
   regeneratePostImage: mocks.regeneratePostImage,
   sendPostPreviewToTelegram: mocks.sendPostPreviewToTelegram,
   buildApprovalKeyboard: vi.fn(() => ({ inline_keyboard: [] })),
+  buildCarouselApprovalKeyboard: vi.fn(() => ({ inline_keyboard: [] })),
   buildInstagramCaption: vi.fn(
     (post: SocialPost) => `${post.caption}\n\n${post.hashtags.join(' ')}`
   ),
@@ -97,6 +101,7 @@ vi.mock('../src/ai/recordingAgent.js', () => ({
 vi.mock('../src/publishers/instagramPublisher.js', () => ({
   InstagramPublisher: vi.fn().mockImplementation(() => ({
     publishSingleImage: mocks.publishSingleImage,
+    publishCarousel: mocks.publishCarousel,
   })),
 }));
 
@@ -508,9 +513,87 @@ describe('Telegram webhook handlers — security, commands & idempotency', () =>
 
     const helpMsg = mocks.sendMessage.mock.calls[0]?.[0]?.text as string;
     expect(helpMsg).toContain('/idea');
+    expect(helpMsg).toContain('/carrusel');
     expect(helpMsg).toContain('/tendencias');
     expect(helpMsg).toContain('/grabar');
     expect(helpMsg).toContain('/status');
     expect(helpMsg).toContain('/help');
+  });
+
+  it('handles /carrusel and /carrusel@botname with and without topic', async () => {
+    mocks.generateAndSendCarousel.mockResolvedValue(makeSamplePost());
+
+    await processTelegramUpdate({
+      update_id: 3008,
+      message: {
+        message_id: 64,
+        from: { id: 55, username: 'founder' },
+        chat: { id: AUTHORIZED_GROUP_CHAT_ID, type: 'supergroup' },
+        text: '/carrusel@fabsoft_social_bot 3 errores en webs de restaurantes',
+      },
+    });
+
+    await processTelegramUpdate({
+      update_id: 3009,
+      message: {
+        message_id: 65,
+        from: { id: 55, username: 'founder' },
+        chat: { id: AUTHORIZED_GROUP_CHAT_ID, type: 'supergroup' },
+        text: '/carrusel',
+      },
+    });
+
+    expect(mocks.generateAndSendCarousel).toHaveBeenNthCalledWith(
+      1,
+      '3 errores en webs de restaurantes',
+      AUTHORIZED_GROUP_CHAT_ID
+    );
+    expect(mocks.generateAndSendCarousel).toHaveBeenNthCalledWith(
+      2,
+      null,
+      AUTHORIZED_GROUP_CHAT_ID
+    );
+  });
+
+  it('publishes via publishCarousel when approving a multi-slide post', async () => {
+    const slideUrls = [
+      'https://cdn.fabsoft.tech/posts/carousel-1-slide-1.jpg',
+      'https://cdn.fabsoft.tech/posts/carousel-1-slide-2.jpg',
+      'https://cdn.fabsoft.tech/posts/carousel-1-slide-3.jpg',
+      'https://cdn.fabsoft.tech/posts/carousel-1-slide-4.jpg',
+      'https://cdn.fabsoft.tech/posts/carousel-1-slide-5.jpg',
+    ];
+    mocks.claimPostForPublishing.mockResolvedValueOnce(
+      makeSamplePost({ id: 'carousel-uuid-1', mediaUrls: slideUrls })
+    );
+    mocks.publishCarousel.mockResolvedValueOnce({
+      externalPostId: 'ig_carousel_999',
+      externalPostUrl: 'https://www.instagram.com/p/CAROUSEL1/',
+    });
+
+    await processTelegramUpdate({
+      update_id: 3010,
+      callback_query: {
+        id: 'cb-approve-carousel',
+        from: { id: 55, username: 'founder' },
+        message: {
+          message_id: 70,
+          chat: { id: AUTHORIZED_GROUP_CHAT_ID, type: 'supergroup' },
+        },
+        data: 'approve:carousel-uuid-1',
+      },
+    });
+
+    expect(mocks.publishCarousel).toHaveBeenCalledTimes(1);
+    expect(mocks.publishCarousel).toHaveBeenCalledWith(
+      slideUrls,
+      'Caption listo para publicar en Instagram.\n\n#FabSoft #TypeScript #CleanCode'
+    );
+    expect(mocks.publishSingleImage).not.toHaveBeenCalled();
+    expect(mocks.markPostPublished).toHaveBeenCalledWith(
+      'carousel-uuid-1',
+      'ig_carousel_999',
+      'https://www.instagram.com/p/CAROUSEL1/'
+    );
   });
 });

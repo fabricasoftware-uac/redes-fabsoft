@@ -92,6 +92,19 @@ export class TelegramClient {
     });
   }
 
+  async sendMediaGroup(
+    chatId: string | number,
+    photoUrls: string[]
+  ): Promise<TelegramMessageResult[]> {
+    return this.call<TelegramMessageResult[]>('sendMediaGroup', {
+      chat_id: chatId,
+      media: photoUrls.map((url) => ({
+        type: 'photo',
+        media: url,
+      })),
+    });
+  }
+
   async answerCallbackQuery(params: {
     callbackQueryId: string;
     text?: string;
