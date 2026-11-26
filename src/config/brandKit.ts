@@ -6,14 +6,14 @@ export const BRAND_KIT = {
   websiteUrl: 'https://www.fabsoft.app/',
   contactEmail: 'hola@fabsoft.co',
   handle: '@fabsoft._',
-  location: 'Popayán (Emprendelab Autónoma, Cauca) & Garzón (Huila) · Colombia',
+  location: 'Colombia · Operación remota LATAM',
   slogans: [
     'Innovación que impulsa el futuro.',
     'Construimos software que despega.',
   ],
   keywords: ['SOFTWARE', 'IA', 'CLOUD', 'FUTURO'],
   originStory:
-    'FabSoft nace del proceso real de dos estudiantes universitarios de Ingeniería de Software trabajando en dupla remota: Socio 1 en Popayán (especialista Front-end y UI/UX, micro-interacciones y experiencia móvil) y Socio 2 en Garzón, Huila (arquitectura de software, backend, rendimiento/Core Web Vitals, IA y flujos a WhatsApp). Coordinan por Discord/Meet con sprints rápidos de 5 a 10 días, sin plantillas ni burocracia.',
+    'FabSoft nace del proceso real de dos estudiantes universitarios de Ingeniería de Software trabajando en dupla remota: Socio 1 especialista en Front-end y UI/UX (micro-interacciones y experiencia móvil) y Socio 2 en arquitectura de software, backend, rendimiento (Core Web Vitals), IA y flujos a WhatsApp. Coordinan en remoto por Discord/Meet con sprints rápidos de 5 a 10 días, sin plantillas ni burocracia.',
   guarantees: [
     'El código es tuyo: repositorio, dominio y cuentas a nombre del cliente desde el día uno.',
     'Avances cada semana: una versión funcionando cada viernes en entorno de pruebas.',
@@ -136,7 +136,7 @@ export const BRAND_KIT = {
       label: 'Build in Public',
       code: '05',
       description:
-        'El día a día de dos estudiantes de Ingeniería de Software construyendo una empresa real desde Popayán: entregas semanales, retos universidad + empresa.',
+        'El día a día de dos estudiantes de Ingeniería de Software construyendo una fábrica de software real: entregas semanales, retos universidad + empresa.',
     },
     inspiracion: {
       label: 'Inspiración',
@@ -162,10 +162,11 @@ export const BRAND_KIT = {
       'Enfoque Mobile First y conversión real (ej. menús PDF lentos vs. flujo directo a WhatsApp, velocidad de carga, UI táctil).',
       'Principio de Respeto Institucional: jamás descalificar negocios o webs; hablar de forma constructiva ("un producto increíble con una web que se quedó en 2016", "fricciones que hacen perder clientes").',
       'CTA Inverso y orgánico: invitar a comentar qué negocio/web auditar o escribir al DM para revisar su interfaz (NUNCA sonar a infomercial ni decir "contrátanos hoy mismo").',
-      'Mezclar hashtags locales (#Popayán #Cauca #Colombia), técnicos (#DesarrolloWeb #UIUXDesign #SoftwareEngineering) y B2B (#EmprendedoresColombia #NegociosLocales).',
+      'Mezclar hashtags técnicos (#DesarrolloWeb #UIUXDesign #SoftwareEngineering #AutomatizacionIA) y B2B (#EmprendedoresColombia #NegociosDigitales #PymesColombia #Colombia).',
       'Usar la metáfora espacial solo si suma valor natural, sin forzarla.',
     ],
     dont: [
+      'NUNCA mencionar ciudades, municipios ni sedes específicas (PROHIBIDO mencionar Popayán, Garzón, Cauca, Huila o Emprendelab) en titulares, slides, copys, guiones ni hashtags.',
       'Humo corporativo vacío ni tono de infomercial ("¡Contrátanos hoy!").',
       'Calificar webs de negocios como "basura", "horrible" o "un desastre".',
       'Promesas mágicas de IA ("hazte rico en 2 días").',
